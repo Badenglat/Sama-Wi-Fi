@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sama Wi-Fi | Premium Client Manager</title>
+
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Share firestore functions with db-manager.js
+        window.firebaseFirestore = { doc, setDoc, getDoc };
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBKABIACk4_APhXaWSUVsdhT4QUC_7xYCY",
+            authDomain: "sama-wi-fi-a0095.firebaseapp.com",
+            projectId: "sama-wi-fi-a0095",
+            storageBucket: "sama-wi-fi-a0095.firebasestorage.app",
+            messagingSenderId: "722933496018",
+            appId: "1:722933496018:web:8de74cc6a76fbcbbead50b",
+            measurementId: "G-2JQPYMSQ68"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Connect to our internal manager
+        if (typeof initFirebase === 'function') {
+            initFirebase(app, db);
+        }
+    </script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="assets/css/modern-ui.css">
+
+    <style>
+        .hidden {
+            display: none !important;
+        }
+
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+
+        .p-8 {
+            padding: 2rem;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Luxury Login Screen -->
+    <div id="loginPage" class="login-screen">
+        <div class="glass-card login-card">
+            <div class="login-logo-container">
+                <img src="assets/img/Sam Logo.png" alt="Sama Wi-Fi Logo" class="login-logo">
+            </div>
+            <div class="login-header">
+                <h1>Sama Wi-Fi</h1>
+                <p class="login-subtitle">Master Control Panel</p>
+            </div>
+
+            <form onsubmit="event.preventDefault(); login(this.username.value, this.password.value)">
+                <div class="login-input-group">
+                    <input type="text" name="username" placeholder="Username" required autocomplete="username">
+                    <i data-lucide="user" style="width: 20px"></i>
+                </div>
+                <div class="login-input-group">
+                    <input type="password" name="password" placeholder="Password" required
+                        autocomplete="current-password">
+                    <i data-lucide="lock" style="width: 20px"></i>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; height: 55px; font-size: 1rem;">
+                    Authenticate System <i data-lucide="arrow-right" style="width: 18px"></i>
+                </button>
+                <div style="margin-top: 15px; text-align: right;">
+                    <a href="javascript:void(0)" onclick="handleForgotPassword()" class="forgot-link">Forgot
+                        Password?</a>
+                </div>
+            </form>
+
+            <div class="login-footer">
+                <i data-lucide="shield-check" style="width: 14px; vertical-align: middle; margin-right: 4px"></i>
+                End-to-End Encrypted Session
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="container">
+
+        <!-- Premium Header -->
+        <header class="main-header">
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <img src="assets/img/Sam Logo.png" alt="Logo"
+                    style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 1px solid var(--glass-border); filter: drop-shadow(0 0 8px var(--primary-glow))">
+                <div>
+                    <h1 class="text-gradient" style="font-size: 1.8rem; line-height: 1">Sama Wi-Fi</h1>
+                    <p id="currentDate" class="text-muted" style="font-size: 0.8rem; margin: 0"></p>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div class="glass-card" style="padding: 8px 16px; border-radius: 12px; font-size: 0.9rem;">
+                    👤 <span id="employeeNameDisplay">Admin</span>
+                </div>
+                <button onclick="logout()" class="btn"
+                    style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Dashboard -->
+        <div class="stats-grid">
+            <div class="glass-card stat-item">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <span id="statTotalClients" class="stat-value">0</span>
+                        <span class="stat-label">Total Volume</span>
+                    </div>
+                    <div style="background: var(--primary-glow); padding: 10px; border-radius: 12px;">📊</div>
+                </div>
+                <div class="stat-card-accent" style="background: var(--primary)"></div>
+            </div>
+            <div class="glass-card stat-item">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <span id="statRevenue" class="stat-value text-gradient">0 SSP</span>
+                        <span class="stat-label">Gross Revenue</span>
+                    </div>
+                    <div style="background: var(--accent-glow); padding: 10px; border-radius: 12px;">💰</div>
+                </div>
+                <div class="stat-card-accent" style="background: var(--accent)"></div>
+            </div>
+            <div class="glass-card stat-item">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <span id="statExpenses" class="stat-value" style="color: var(--danger)">0 SSP</span>
+                        <span class="stat-label">Business Cost</span>
+                    </div>
+                    <div style="background: var(--danger-glow); padding: 10px; border-radius: 12px;">💸</div>
+                </div>
+                <div class="stat-card-accent" style="background: var(--danger)"></div>
+            </div>
+            <div class="glass-card stat-item">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <span id="statNetProfit" class="stat-value">0 SSP</span>
+                        <span class="stat-label">Net Profit</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 12px;">📈</div>
+                </div>
+                <div class="stat-card-accent" style="background: #fff"></div>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <nav class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('clients')">
+                <i data-lucide="users" style="width: 18px"></i> Manage
+            </button>
+            <button class="tab-btn" onclick="switchTab('vouchers')">
+                <i data-lucide="ticket" style="width: 18px"></i> Vouchers
+            </button>
+            <button class="tab-btn" onclick="switchTab('expenses')">
+                <i data-lucide="wallet" style="width: 18px"></i> Expenses
+            </button>
+            <button class="tab-btn" onclick="switchTab('history')">
+                <i data-lucide="bar-chart-3" style="width: 18px"></i> Reports
+            </button>
+            <button class="tab-btn" onclick="switchTab('settings')">
+                <i data-lucide="settings" style="width: 18px"></i> Settings
+            </button>
+        </nav>
+
+        <!-- Clients Tab -->
+        <div id="clientsTab" class="tab-content">
+            <div class="tab-grid">
+                <!-- Add Client Form -->
+                <div class="glass-card">
+                    <h2 class="mb-4">Quick Add Client</h2>
+                    <form onsubmit="addClient(event)">
+                        <div class="form-group">
+                            <label>Client Name</label>
+                            <input type="text" name="clientName" placeholder="Full Name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Type</label>
+                            <input type="text" name="phoneType" placeholder="e.g. iPhone, Samsung, Laptop" required>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="form-group">
+                                <label>Duration</label>
+                                <select name="duration" onchange="
+                                    var clientPrices = { '1hour': 1000, '2hours': 1500, 'daily': 2000, 'weekly': 14000, 'monthly': 60000 };
+                                    this.form.amount.value = clientPrices[this.value] || 0;
+                                    this.form.amount.readOnly = (this.value !== 'custom');
+                                ">
+                                    <option value="" disabled selected>Select duration...</option>
+                                    <option value="1hour">1 Hour (1,000 SSP)</option>
+                                    <option value="2hours">2 Hours (1,500 SSP)</option>
+                                    <option value="daily">Full Day (2,000 SSP)</option>
+                                    <option value="weekly">Weekly (14,000 SSP)</option>
+                                    <option value="monthly">Monthly (60,000 SSP)</option>
+                                    <option value="custom">Custom Price</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount (SSP)</label>
+                                <input type="number" name="amount" placeholder="0" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Payment Status</label>
+                            <select name="paymentStatus">
+                                <option value="paid">✅ Fully Paid</option>
+                                <option value="unpaid">⏳ Unpaid</option>
+                                <option value="borrowed">🤝 Borrowed</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Internal Notes</label>
+                            <textarea name="notes" placeholder="Any details..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%">Register Client</button>
+                    </form>
+                </div>
+
+                <!-- Live Transaction List -->
+                <div class="glass-card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h2 style="margin: 0">Today's Activity</h2>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="date" id="filterDate" onchange="updateDisplay()"
+                                style="padding: 6px 12px; font-size: 0.8rem; width: auto;">
+                            <input type="text" id="searchBox" placeholder="Search..." onkeyup="updateDisplay()"
+                                style="padding: 6px 12px; font-size: 0.8rem; width: 150px;">
+                        </div>
+                    </div>
+                    <div id="transactionList" class="transaction-list">
+                        <!-- Items injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vouchers Tab -->
+        <div id="vouchersTab" class="tab-content hidden">
+            <div class="tab-grid">
+                <div class="glass-card">
+                    <h2 class="mb-4">Sell New Voucher</h2>
+
+                    <div class="stats-grid"
+                        style="grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 24px">
+                        <div class="glass-card"
+                            style="padding: 10px; text-align: center; border: 1px solid var(--glass-border);">
+                            <small class="text-muted">1 Hr</small>
+                            <div id="stock1hr" style="font-weight: 800; font-size: 1rem;">0</div>
+                        </div>
+                        <div class="glass-card"
+                            style="padding: 10px; text-align: center; border: 1px solid var(--glass-border);">
+                            <small class="text-muted">2 Hr</small>
+                            <div id="stock2hr" style="font-weight: 800; font-size: 1rem;">0</div>
+                        </div>
+                        <div class="glass-card"
+                            style="padding: 10px; text-align: center; border: 1px solid var(--glass-border);">
+                            <small class="text-muted">Day</small>
+                            <div id="stockday" style="font-weight: 800; font-size: 1rem;">0</div>
+                        </div>
+                        <div class="glass-card"
+                            style="padding: 10px; text-align: center; border: 1px solid var(--glass-border);">
+                            <small class="text-muted">Wk</small>
+                            <div id="stockweek" style="font-weight: 800; font-size: 1rem;">0</div>
+                        </div>
+                        <div class="glass-card"
+                            style="padding: 10px; text-align: center; border: 1px solid var(--glass-border);">
+                            <small class="text-muted">Mo</small>
+                            <div id="stockmonth" style="font-weight: 800; font-size: 1rem;">0</div>
+                        </div>
+                    </div>
+
+                    <form onsubmit="addVoucher(event)">
+                        <div class="form-group">
+                            <label>Voucher Type</label>
+                            <select name="voucherType" onchange="
+                                var vPrices = { '1hr': 1000, '2hr': 1500, 'day': 2000, 'week': 14000, 'month': 60000 };
+                                this.form.voucherAmount.value = vPrices[this.value] || 0;
+                            ">
+                                <option value="" disabled selected>Choose a type...</option>
+                                <option value="1hr">1 Hour Voucher (1,000)</option>
+                                <option value="2hr">2 Hour Voucher (1,500)</option>
+                                <option value="day">Full Day Voucher (2,000)</option>
+                                <option value="week">Weekly Voucher (14,000)</option>
+                                <option value="month">Monthly Voucher (60,000)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (SSP)</label>
+                            <input type="number" name="voucherAmount" placeholder="0" required readonly
+                                style="background: rgba(255,255,255,0.02); opacity: 0.8;">
+                        </div>
+                        <div class="form-group">
+                            <label>username</label>
+                            <input type="text" name="voucherUsername" placeholder="Enter username" required>
+                        </div>
+                        <div class="form-group">
+                            <label>password</label>
+                            <input type="text" name="voucherPassword" placeholder="Enter password" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Client Name (Optional)</label>
+                            <input type="text" name="voucherClient" placeholder="Who is buying?">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%; background: #c084fc">Sell
+                            Voucher</button>
+                    </form>
+                </div>
+
+                <div class="glass-card">
+                    <h2 class="mb-4">Recent Voucher Sales</h2>
+                    <div id="voucherHistory" class="transaction-list">
+                        <!-- Voucher specific list could go here, or we use the main activity list -->
+                        <p class="text-muted text-center p-8">Voucher sales will appear in the "Manage Clients" daily
+                            activity list.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expenses Tab -->
+        <div id="expensesTab" class="tab-content hidden">
+            <div style="max-width: 600px; margin: 0 auto;">
+                <div class="glass-card">
+                    <h2 class="mb-4">Record New Expense</h2>
+                    <form onsubmit="addExpense(event)">
+                        <div class="form-group">
+                            <label>Expense Category</label>
+                            <select name="expenseCategory">
+                                <option value="lunch">🍽️ Food</option>
+                                <option value="tea">☕ Tea / Drinks</option>
+                                <option value="maintenance">🔧 Maintenance</option>
+                                <option value="transport">🚗 Transport</option>
+                                <option value="salary">💰 Salary / Advance</option>
+                                <option value="other">📝 Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Description / Reason</label>
+                            <input type="text" name="expenseReason" placeholder="What was this for?" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (SSP)</label>
+                            <input type="number" name="expenseAmount" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Person Responsible</label>
+                            <input type="text" name="personName" placeholder="Who spent this?">
+                        </div>
+                        <button type="submit" class="btn btn-primary"
+                            style="width: 100%; background: var(--danger)">Record Expense</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Archives Tab -->
+        <div id="historyTab" class="tab-content hidden">
+            <div class="glass-card mb-4">
+                <h3 class="mb-4">Financial Overview (Last 7 Reports)</h3>
+                <canvas id="businessChart" style="max-height: 300px;"></canvas>
+            </div>
+
+            <div class="glass-card mb-4">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0">Generate Analytical Report</h3>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="reportPeriod" style="padding: 8px; width: auto;">
+                            <option value="daily">Daily Report</option>
+                            <option value="weekly">Weekly Summary</option>
+                            <option value="monthly">Monthly Statement</option>
+                        </select>
+                        <button onclick="generateReport()" class="btn btn-primary">Generate</button>
+                    </div>
+                </div>
+                <div id="reportPreview" class="hidden"
+                    style="margin-top: 20px; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px dashed var(--glass-border);">
+                    <!-- Dynamic Summary Content -->
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2>Historical Archive</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="saveReport()" class="btn btn-primary" style="background: var(--accent)">Archive
+                        Today's Stats</button>
+                </div>
+            </div>
+            <div id="historyContent">
+                <!-- Reports injected by JS -->
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settingsTab" class="tab-content hidden">
+            <div class="glass-card" style="max-width: 600px; margin: 0 auto;">
+                <h2 class="mb-4">System Settings</h2>
+                <div class="form-group">
+                    <label>Employee Name</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="employeeNameInput" placeholder="Enter name">
+                        <button
+                            onclick="employeeName = document.getElementById('employeeNameInput').value; saveData(); location.reload();"
+                            class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+
+                <h3 class="mb-4">Administrator Security</h3>
+                <div class="glass-card mb-4" style="background: rgba(239, 68, 68, 0.05);">
+                    <div class="form-group">
+                        <label>Login Credentials</label>
+                        <input type="password" id="oldPassInput" placeholder="Verify Current Password" class="mb-4"
+                            style="margin-bottom: 12px">
+
+                        <div class="form-group" style="margin-top: 12px">
+                            <label>New Username</label>
+                            <input type="text" id="newUsernameInput" placeholder="Enter new username">
+                        </div>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>New Password (Optional)</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="password" id="newPassInput" placeholder="Leave empty to keep old">
+                                <button
+                                    onclick="updateSecurity(document.getElementById('newUsernameInput').value, document.getElementById('oldPassInput').value, document.getElementById('newPassInput').value)"
+                                    class="btn btn-primary" style="background: var(--danger); white-space: nowrap;">Save
+                                    Changes</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group"
+                            style="margin-top: 25px; padding-top: 15px; border-top: 1px dashed var(--glass-border);">
+                            <label>System Recovery Key</label>
+                            <div
+                                style="font-family: monospace; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 8px; color: var(--accent); display: flex; justify-content: space-between; align-items: center;">
+                                <span id="recoveryKeyDisplay">Generating...</span>
+                                <button type="button"
+                                    onclick="navigator.clipboard.writeText(document.getElementById('recoveryKeyDisplay').textContent); showNotification('Key copied!')"
+                                    class="btn"
+                                    style="padding: 4px 8px; font-size: 0.7rem; background: rgba(255,255,255,0.1)">Copy</button>
+                            </div>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">Keep this key in a
+                                safe place. You need it to reset your password if you forget it.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+
+                <h3 class="mb-4">Inventory Management (Restock)</h3>
+                <div class="glass-card mb-4" style="background: rgba(16, 185, 129, 0.05);">
+                    <div class="form-group">
+                        <label>Select Voucher Type to Restock</label>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+                            <div style="flex: 2; min-width: 150px;">
+                                <select id="restockType">
+                                    <option value="1hr">1 Hour Voucher</option>
+                                    <option value="2hr">2 Hour Voucher</option>
+                                    <option value="day">Full Day Voucher</option>
+                                    <option value="week">Weekly Voucher</option>
+                                    <option value="month">Monthly Voucher</option>
+                                </select>
+                            </div>
+                            <div style="flex: 1; min-width: 100px;">
+                                <input type="number" id="restockAmount" placeholder="Qty" min="1" value="10">
+                            </div>
+                            <button
+                                onclick="restockVoucher(document.getElementById('restockType').value, document.getElementById('restockAmount').value)"
+                                class="btn btn-primary" style="background: var(--accent); white-space: nowrap;">
+                                Add to Stock
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+
+                <h3 class="mb-4">Cloud Synchronization</h3>
+                <div class="glass-card mb-4" style="background: rgba(99, 102, 241, 0.05);">
+                    <p class="text-muted mb-4" style="font-size: 0.85rem;">Enable Cloud Sync to back up your data to
+                        Google Firebase. This allows you to access your manager from any phone or computer.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Cloud Database Status</span>
+                        <button id="cloudToggleBtn"
+                            onclick="toggleCloudSync(localStorage.getItem('wifi_cloud_enabled') === 'true' ? 'false' : 'true')"
+                            class="btn" style="background: var(--secondary)">
+                            OFF
+                        </button>
+                    </div>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 24px 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <button onclick="backupData()" class="btn" style="background: rgba(255, 255, 255, 0.1)">📥 Backup
+                        JSON</button>
+                    <button onclick="exportToCSV()" class="btn" style="background: rgba(255, 255, 255, 0.1)">📊 Export
+                        CSV</button>
+                </div>
+                <button onclick="if(confirm('WIPE ALL DATA?')) { localStorage.clear(); location.reload(); }"
+                    class="btn btn-primary" style="width: 100%; margin-top: 24px; background: var(--danger)">FACTORY
+                    RESET (DELETE ALL DATA)</button>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div id="editModal" class="modal hidden">
+            <div class="modal-content glass-card">
+                <div class="modal-header">
+                    <h2 id="editModalTitle">Edit Record</h2>
+                    <button onclick="closeModal()" class="btn-close">&times;</button>
+                </div>
+                <form id="editForm" onsubmit="saveEdit(event)" style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="hidden" name="itemId">
+                    <input type="hidden" name="itemType">
+
+                    <div id="editFields" style="flex: 1;">
+                        <!-- Dynamic fields based on type -->
+                    </div>
+
+                    <div
+                        style="display: flex; gap: 12px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--glass-border);">
+                        <button type="button" onclick="closeModal()" class="btn"
+                            style="flex: 1; background: rgba(255,255,255,0.05)">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="flex: 2">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modernized Print Template -->
+    <div id="printArea" style="display: none;">
+        <div style="padding: 40px; font-family: 'Outfit', 'Segoe UI', sans-serif; color: #1e293b; background: white;">
+            <!-- Header with Premium Branding (Centered & Circled Logo) -->
+            <div
+                style="display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
+                <div
+                    style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid #6366f1; padding: 5px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; background: #f8fafc;">
+                    <img src="assets/img/Sam Logo.png" alt="Logo"
+                        style="height: 80px; width: 80px; object-fit: contain; border-radius: 50%;">
+                </div>
+                <div>
+                    <h1 style="margin: 0; font-size: 36px; font-weight: 800; color: #0f172a; letter-spacing: -1px;">Sama
+                        Wi-Fi</h1>
+                    <p id="printSubtitle"
+                        style="margin: 5px 0; font-size: 16px; color: #6366f1; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;">
+                    </p>
+                    <p id="printMeta"
+                        style="margin: 10px 0 0 0; font-size: 12px; font-weight: 500; color: #64748b; line-height: 1.6;">
+                    </p>
+                </div>
+            </div>
+
+            <!-- Dashboard Summary Cards -->
+            <div id="printStats"
+                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 40px;">
+                <!-- Modern Cards injected via JS -->
+            </div>
+
+            <!-- Table Sections -->
+            <div id="printTableContainer">
+                <!-- Tables injected via JS with modern styles -->
+            </div>
+
+            <!-- Footer Branding -->
+            <div
+                style="margin-top: 80px; padding-top: 30px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; color: #94a3b8; font-size: 10px;">
+                <div>
+                    <strong>Sama Wi-Fi Business Management System</strong><br>
+                    Official Document • High Accuracy Reporting
+                </div>
+                <div style="text-align: right;">
+                    Generated on ${new Date().toLocaleString()}<br>
+                    &copy; 2026 Sama Professional Services
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Scripts -->
+    <script src="assets/js/db-manager.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script>
+        // Init UI States
+        if (localStorage.getItem('wifi_cloud_enabled') === 'true') {
+            const btn = document.getElementById('cloudToggleBtn');
+            btn.textContent = 'ON (ACTIVE)';
+            btn.style.background = 'var(--accent)';
+        }
+
+        // Init Lucide Icons
+        setTimeout(() => lucide.createIcons(), 100);
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,15 @@
+# Local environment files
+.env
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Data backups (optional to exclude if you want to keep repo clean)
+*.csv
+*.json
+!initial_data.json
+
+# Node modules (if any were added later)
+node_modules/
