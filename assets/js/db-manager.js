@@ -43,24 +43,22 @@ function initFirebase(firebaseApp, firestoreDoc) {
     }
 }
 
-async function syncToCloud(collectionName, data) {
+async function syncAllToCloud(allData) {
     if (!useCloud || !db) return;
 
     try {
         const { doc, setDoc } = window.firebaseFirestore;
-        // We store everything in a single document for simplicity/speed in this version
-        // or separate per collection. Let's do a master 'sama_state' document.
         const stateDoc = doc(db, "sama_storage", "current_state");
 
         await setDoc(stateDoc, {
-            [collectionName]: data,
+            ...allData,
             lastUpdated: new Date().toISOString(),
             updatedBy: localStorage.getItem('wifi_employee') || 'Admin'
         }, { merge: true });
 
-        console.log(`Cloud: ${collectionName} synced.`);
+        console.log("Cloud: Full state sync complete.");
     } catch (error) {
-        console.error("Cloud Sync Error:", error);
+        console.error("Cloud Global Sync Error:", error);
     }
 }
 
@@ -85,8 +83,14 @@ async function loadFromCloud() {
             if (cloudData.password) localStorage.setItem('wifi_password', cloudData.password);
 
             showNotification('Cloud Data Synchronized!', 'info');
-            // Data is loaded, but app.js needs to be told to refresh its variables
-            // This is done by the page reload after turning on sync, or we can trigger it.
+
+            // 🔄 TRIGGER REFRESH in app.js
+            if (typeof loadData === 'function') {
+                loadData(); // Re-read from localStorage
+                if (typeof updateDisplay === 'function') {
+                    updateDisplay(); // Refresh UI
+                }
+            }
         }
     } catch (error) {
         console.error("Cloud Load Error:", error);

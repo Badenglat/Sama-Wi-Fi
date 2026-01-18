@@ -20,6 +20,15 @@ let systemPassword = "1234";
 let currentTab = 'clients';
 let businessChart = null;
 
+// Helpers
+const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
@@ -57,23 +66,34 @@ function saveData() {
     localStorage.setItem('wifi_username', systemUsername);
     localStorage.setItem('wifi_password', systemPassword);
 
-    // Dynamic Cloud Sync Trigger
-    if (typeof syncToCloud === 'function') {
-        syncToCloud('clients', clients);
-        syncToCloud('vouchers', vouchers);
-        syncToCloud('voucherStock', voucherStock);
-        syncToCloud('expenses', expenses);
-        syncToCloud('reports', dailyReports);
-        syncToCloud('employeeName', employeeName);
-        syncToCloud('password', systemPassword);
+    // Dynamic Cloud Sync Trigger (Unified Sync)
+    if (typeof syncAllToCloud === 'function') {
+        syncAllToCloud({
+            clients,
+            vouchers,
+            voucherStock,
+            expenses,
+            reports: dailyReports,
+            employeeName,
+            password: systemPassword
+        });
     }
 }
 
 function initializeAppUI() {
     // Set Current Date
+    const now = new Date();
     const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-US', dateOptions);
+    document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', dateOptions);
     document.getElementById('employeeNameDisplay').textContent = employeeName;
+    const nameInput = document.getElementById('employeeNameInput');
+    if (nameInput) nameInput.value = employeeName;
+
+    // Initialize Filter Date to Today (Local YYYY-MM-DD)
+    const filterEl = document.getElementById('filterDate');
+    if (filterEl) {
+        filterEl.value = getLocalDateString();
+    }
 
     // Cloud Toggle UI
     const cloudBtn = document.getElementById('cloudToggleBtn');
@@ -291,7 +311,7 @@ function updateStockDisplay() {
 }
 
 function updateStats() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
 
     // Robust filtering to prevent crashes on missing data
     const todayClients = clients.filter(c => c && c.date && c.date.toString().startsWith(today));
@@ -319,8 +339,7 @@ function renderTransactions() {
     list.innerHTML = '';
 
     // Get filter date in YYYY-MM-DD format
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = getLocalDateString();
     const dateFilter = document.getElementById('filterDate')?.value || today;
     const searchTerm = document.getElementById('searchBox')?.value.toLowerCase() || '';
 
@@ -815,7 +834,7 @@ function printSingleReport(dateStr) {
 }
 
 function saveReport() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
 
     // Robust filtering to prevent crashes
     const todayClients = clients.filter(c => c && c.date && c.date.toString().startsWith(today));
@@ -1004,7 +1023,7 @@ function printTheReport(period) {
     document.getElementById('printSubtitle').textContent = `${period.toUpperCase()} PERFORMANCE AUDIT`;
     document.getElementById('printMeta').textContent = `Audit Period: ${startDate.toLocaleDateString()} - ${now.toLocaleDateString()}
     Authorized By: ${employeeName}
-    Document ID: AUD-${now.toISOString().split('T')[0].replace(/-/g, '')}`;
+    Document ID: AUD-${getLocalDateString().replace(/-/g, '')}`;
 
     // Modern Dashboard Cards
     document.getElementById('printStats').innerHTML = `
@@ -1127,7 +1146,7 @@ function backupData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `SAMA_WIFI_BACKUP_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `SAMA_WIFI_BACKUP_${getLocalDateString()}.json`;
     a.click();
     showNotification('Backup generated successfully');
 }
@@ -1149,7 +1168,7 @@ function exportToCSV() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `SAMA_WIFI_EXPORT_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `SAMA_WIFI_EXPORT_${getLocalDateString()}.csv`;
     a.click();
     showNotification('CSV Export complete');
 }
