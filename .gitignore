@@ -13,3 +13,7 @@
 
 # Node modules (if any were added later)
 node_modules/
+dist/
+
+!package.json
+!package-lock.json

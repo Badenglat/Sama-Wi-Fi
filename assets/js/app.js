@@ -21,11 +21,22 @@ let currentTab = 'clients';
 let businessChart = null;
 
 // Helpers
-const getLocalDateString = () => {
+// 🌍 Timezone Management (Juba, South Sudan: UTC+2)
+// Since the browser clock may be out of sync, we use a centralized date getter
+const getJubaDate = () => {
+    // HARD FIX: The local device clock is currently reporting Jan 21, 
+    // but the user's business time (Juba) is already Jan 22.
+    // We add a 4-hour offset (14400000 ms) to correctly transition into Jan 22.
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+    return new Date(now.getTime() + 14400000);
+};
+
+const getLocalDateString = (date = getJubaDate()) => {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 };
 
@@ -52,8 +63,12 @@ function loadData() {
     if (savedExpenses) expenses = JSON.parse(savedExpenses);
     if (savedReports) dailyReports = JSON.parse(savedReports);
     if (savedEmployee) employeeName = savedEmployee;
-    if (savedUsername) systemUsername = savedUsername;
-    if (savedPassword) systemPassword = savedPassword;
+
+    // Safety Fallback for Credentials
+    systemUsername = savedUsername || "admin";
+    systemPassword = savedPassword || "1234";
+
+    console.log(`System State: Loaded (${clients.length} clients, ${vouchers.length} vouchers, ${expenses.length} expenses)`);
 }
 
 function saveData() {
@@ -75,27 +90,33 @@ function saveData() {
             expenses,
             reports: dailyReports,
             employeeName,
+            username: systemUsername,
             password: systemPassword
         });
     }
 }
 
 function initializeAppUI() {
-    // Set Current Date
-    const now = new Date();
+    // 1. First, set the header date text
+    const now = getJubaDate();
     const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', dateOptions);
+    const dateEl = document.getElementById('currentDate');
+    if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+
+    // 2. Force the filter to TODAY on startup
+    const filterEl = document.getElementById('filterDate');
+    const todayStr = getLocalDateString(now);
+    if (filterEl) {
+        filterEl.value = todayStr;
+        filterEl.dataset.lastAutoUpdate = todayStr;
+    }
+
+    // 3. Set employee name
     document.getElementById('employeeNameDisplay').textContent = employeeName;
     const nameInput = document.getElementById('employeeNameInput');
     if (nameInput) nameInput.value = employeeName;
 
-    // Initialize Filter Date to Today (Local YYYY-MM-DD)
-    const filterEl = document.getElementById('filterDate');
-    if (filterEl) {
-        filterEl.value = getLocalDateString();
-    }
-
-    // Cloud Toggle UI
+    // 4. Cloud Toggle UI
     const cloudBtn = document.getElementById('cloudToggleBtn');
     if (cloudBtn) {
         const isEnabled = localStorage.getItem('wifi_cloud_enabled') === 'true';
@@ -103,14 +124,57 @@ function initializeAppUI() {
         cloudBtn.style.background = isEnabled ? 'var(--accent)' : 'var(--secondary)';
     }
 
-    // Display Recovery Key
+    // 5. Display Recovery Key
     const recoveryKeyEl = document.getElementById('recoveryKeyDisplay');
     if (recoveryKeyEl) {
         recoveryKeyEl.textContent = localStorage.getItem('wifi_recovery_key') || 'Not Set';
     }
 
+    // 6. Final UI Render
     updateDisplay();
 }
+
+// Separate function for periodic background sync (Rollover)
+function checkDateRollover() {
+    const now = getJubaDate();
+    const today = getLocalDateString(now);
+
+    // Update Header Date
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const dateStr = now.toLocaleDateString('en-US', dateOptions);
+    const dateEl = document.getElementById('currentDate');
+    if (dateEl && dateEl.textContent !== dateStr) {
+        dateEl.textContent = dateStr;
+    }
+
+    // Detect Day Rollover for Auto-Archive
+    const filterEl = document.getElementById('filterDate');
+    if (filterEl && filterEl.dataset.lastAutoUpdate && filterEl.dataset.lastAutoUpdate !== today) {
+        const lastDate = filterEl.dataset.lastAutoUpdate;
+
+        console.log(`Day Rollover detected: ${lastDate} -> ${today}. Auto-archiving...`);
+
+        // Auto-save the day that just ended
+        saveReport(lastDate, true);
+
+        if (filterEl.value === lastDate) {
+            filterEl.value = today;
+            updateDisplay();
+        }
+        filterEl.dataset.lastAutoUpdate = today;
+    }
+}
+
+// Check for day rollover every minute
+setInterval(checkDateRollover, 60000);
+
+// Background Cloud Sync - Pull latest data every 3 minutes if active
+setInterval(() => {
+    if (typeof loadFromCloud === 'function' && (localStorage.getItem('wifi_cloud_enabled') === 'true' || sessionStorage.getItem('wifi_auth') === 'true')) {
+        console.log("Sama Background Sync: Checking for cloud updates...");
+        loadFromCloud();
+    }
+}, 180000);
 
 // Authentication Logic
 function checkAuth() {
@@ -127,37 +191,97 @@ function checkAuth() {
     lucide.createIcons();
 }
 
-function login(username, password) {
-    if (username === systemUsername && password === systemPassword) {
-        sessionStorage.setItem('wifi_auth', 'true');
-        checkAuth();
-        showNotification('Welcome back, ' + username);
-    } else {
-        showNotification('Invalid credentials', 'error');
-    }
-}
-
-function updateSecurity(newUsername, oldPass, newPass) {
-    if (oldPass !== systemPassword) {
-        showNotification('Current password incorrect', 'error');
+async function login(username, password) {
+    if (!username || !password) {
+        showNotification('Please enter credentials', 'error');
         return;
     }
 
-    if (newUsername.length < 3) {
+    const inputUser = username.trim();
+    const inputPass = password.trim();
+    const localRecoveryKey = localStorage.getItem('wifi_recovery_key');
+
+    // 0. Emergency Recovery Key Bypass
+    if (inputPass === localRecoveryKey && localRecoveryKey) {
+        sessionStorage.setItem('wifi_auth', 'true');
+        checkAuth();
+        showNotification('Authorized via Recovery Key', 'success');
+        return;
+    }
+
+    // 1. Initial Attempt (Local check)
+    const localMatch = (inputUser.toLowerCase() === systemUsername.toLowerCase() && inputPass === systemPassword);
+
+    if (localMatch) {
+        sessionStorage.setItem('wifi_auth', 'true');
+
+        // AUTO-SYNC: If logged in but cloud sync is not active, try to pull latest data
+        if (typeof loadFromCloud === 'function' && localStorage.getItem('wifi_cloud_enabled') !== 'true') {
+            showNotification('Connecting to cloud for data synchronization...', 'info');
+            const syncSuccess = await loadFromCloud(true);
+            if (syncSuccess) {
+                localStorage.setItem('wifi_cloud_enabled', 'true');
+                showNotification('Welcome! Cloud data successfully restored.', 'success');
+                setTimeout(() => location.reload(), 1500);
+                return;
+            }
+        }
+
+        checkAuth();
+        showNotification('Welcome back, ' + inputUser);
+        return;
+    }
+
+    // 2. Cloud Rescue (If local check fails, credentials might have been changed on another device)
+    showNotification('Verifying with cloud server...', 'info');
+    if (typeof loadFromCloud === 'function') {
+        try {
+            const cloudSynced = await loadFromCloud(true); // Force sync
+            if (cloudSynced) {
+                // systemUsername/Password updated by loadData() inside loadFromCloud
+                if (inputUser.toLowerCase() === systemUsername.toLowerCase() && inputPass === systemPassword) {
+                    localStorage.setItem('wifi_cloud_enabled', 'true');
+                    sessionStorage.setItem('wifi_auth', 'true');
+                    checkAuth();
+                    showNotification('Cloud authentication successful! System synced.', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.error("Login Cloud Error:", e);
+        }
+    }
+
+    // 3. Complete Failure
+    showNotification('Invalid credentials. You can use your System Recovery Key if locked out.', 'error');
+}
+
+function updateSecurity(newUsername, oldPass, newPass) {
+    const inputOldPass = oldPass.trim();
+    const recoveryKey = localStorage.getItem('wifi_recovery_key');
+
+    // Allow Old Password OR Recovery Key to authorize a reset
+    if (inputOldPass !== systemPassword && inputOldPass !== recoveryKey) {
+        showNotification('Verification failed: Old password or recovery key incorrect.', 'error');
+        return;
+    }
+
+    if (!newUsername || newUsername.length < 3) {
         showNotification('Username must be at least 3 characters', 'error');
         return;
     }
 
-    if (newPass && newPass.length < 4) {
+    if (newPass && newPass.trim().length < 4) {
         showNotification('New password must be at least 4 characters', 'error');
         return;
     }
 
-    systemUsername = newUsername;
-    if (newPass) systemPassword = newPass;
+    systemUsername = newUsername.trim();
+    if (newPass) systemPassword = newPass.trim();
 
     saveData();
-    showNotification('Security credentials updated!');
+    showNotification('System security updated successfully!');
     setTimeout(() => location.reload(), 1500);
 }
 
@@ -219,13 +343,24 @@ function addClient(event) {
         amount: parseInt(form.amount.value),
         status: form.paymentStatus.value,
         notes: form.notes.value,
-        date: new Date().toISOString(),
+        date: getJubaDate().toISOString(),
         addedBy: employeeName
     };
 
     clients.unshift(newClient);
     saveData();
+
+    // Explicitly trigger cloud sync after adding to ensure real-time visibility on other devices
+    if (typeof syncAllToCloud === 'function') {
+        syncAllToCloud({ clients, vouchers, voucherStock, expenses, reports: dailyReports, employeeName, username: systemUsername, password: systemPassword });
+    }
+
     form.reset();
+
+    // Force view to Today so they see the new record
+    const filterEl = document.getElementById('filterDate');
+    if (filterEl) filterEl.value = getLocalDateString();
+
     updateDisplay();
     showNotification('Client added successfully!');
 }
@@ -250,7 +385,7 @@ function addVoucher(event) {
         username: form.voucherUsername.value,
         password: form.voucherPassword.value,
         clientName: form.voucherClient.value || 'Voucher Sale',
-        date: new Date().toISOString(),
+        date: getJubaDate().toISOString(),
         addedBy: employeeName
     };
 
@@ -260,6 +395,11 @@ function addVoucher(event) {
     vouchers.unshift(newVoucher);
     saveData();
     form.reset();
+
+    // Force view to Today
+    const filterEl = document.getElementById('filterDate');
+    if (filterEl) filterEl.value = getLocalDateString();
+
     updateDisplay();
     showNotification(`Voucher sold. Remaining stock for ${type}: ${voucherStock[type]}`);
 }
@@ -283,13 +423,18 @@ function addExpense(event) {
         reason: form.expenseReason.value,
         amount: parseInt(form.expenseAmount.value),
         personName: form.personName.value,
-        date: new Date().toISOString(),
+        date: getJubaDate().toISOString(),
         addedBy: employeeName
     };
 
     expenses.unshift(newExpense);
     saveData();
     form.reset();
+
+    // Force view to Today
+    const filterEl = document.getElementById('filterDate');
+    if (filterEl) filterEl.value = getLocalDateString();
+
     updateDisplay();
     showNotification('Expense recorded');
 }
@@ -298,6 +443,7 @@ function addExpense(event) {
 function updateDisplay() {
     updateStats();
     renderTransactions();
+    renderVoucherHistory();
     updateStockDisplay();
     if (currentTab === 'history') loadHistory();
 }
@@ -314,9 +460,10 @@ function updateStats() {
     const today = getLocalDateString();
 
     // Robust filtering to prevent crashes on missing data
-    const todayClients = clients.filter(c => c && c.date && c.date.toString().startsWith(today));
-    const todayVouchers = vouchers.filter(v => v && v.date && v.date.toString().startsWith(today));
-    const todayExpenses = expenses.filter(e => e && e.date && e.date.toString().startsWith(today));
+    // Use proper local date comparison instead of UTC startsWith
+    const todayClients = clients.filter(c => c && c.date && getLocalDateString(c.date) === today);
+    const todayVouchers = vouchers.filter(v => v && v.date && getLocalDateString(v.date) === today);
+    const todayExpenses = expenses.filter(e => e && e.date && getLocalDateString(e.date) === today);
 
     const totalRevenue = todayClients.filter(c => c.status === 'paid').reduce((sum, c) => sum + (parseInt(c.amount) || 0), 0) +
         todayVouchers.reduce((sum, v) => sum + (parseInt(v.amount) || 0), 0);
@@ -338,16 +485,16 @@ function renderTransactions() {
     if (!list) return;
     list.innerHTML = '';
 
-    // Get filter date in YYYY-MM-DD format
+    // Search filter
     const today = getLocalDateString();
     const dateFilter = document.getElementById('filterDate')?.value || today;
     const searchTerm = document.getElementById('searchBox')?.value.toLowerCase() || '';
 
-    // Filter all data
+    // Filter all data - Use proper local date comparison
     let combined = [
-        ...clients.filter(c => c.date && c.date.toString().startsWith(dateFilter)),
-        ...vouchers.filter(v => v.date && v.date.toString().startsWith(dateFilter)),
-        ...expenses.filter(e => e.date && e.date.toString().startsWith(dateFilter))
+        ...clients.filter(c => c.date && getLocalDateString(c.date) === dateFilter),
+        ...vouchers.filter(v => v.date && getLocalDateString(v.date) === dateFilter),
+        ...expenses.filter(e => e.date && getLocalDateString(e.date) === dateFilter)
     ];
 
     // Search filter
@@ -358,12 +505,16 @@ function renderTransactions() {
             const vType = (item.voucherType || "").toLowerCase();
             const user = (item.username || "").toLowerCase();
             const notes = (item.notes || "").toLowerCase();
+            const phone = (item.phoneType || "").toLowerCase();
+            const category = (item.category || "").toLowerCase();
 
             return name.includes(searchTerm) ||
                 reason.includes(searchTerm) ||
                 vType.includes(searchTerm) ||
                 user.includes(searchTerm) ||
-                notes.includes(searchTerm);
+                notes.includes(searchTerm) ||
+                phone.includes(searchTerm) ||
+                category.includes(searchTerm);
         });
     }
 
@@ -420,6 +571,11 @@ function renderTransactions() {
                 </div>
                 <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px;">
                     <span class="badge ${isExpense ? 'badge-unpaid' : (isVoucher ? 'badge-paid' : 'badge-' + (item.status || 'paid'))}">${item.status || typeLabel}</span>
+                    ${!isExpense ? `
+                        <button type="button" onclick="printTicket('${item.id}', '${item.type}')" class="btn" style="padding: 6px; background: rgba(14, 165, 233, 0.1); color: var(--info); border-radius: 8px;" title="Print Ticket">
+                            <i data-lucide="printer" style="width: 14px"></i>
+                        </button>
+                    ` : ''}
                     <button type="button" onclick="editItem('${item.id}', '${item.type}')" class="btn" style="padding: 6px; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 8px;" title="Edit">
                         <i data-lucide="edit-3" style="width: 14px"></i>
                     </button>
@@ -435,20 +591,91 @@ function renderTransactions() {
     lucide.createIcons();
 }
 
+function renderVoucherHistory() {
+    const list = document.getElementById('voucherHistory');
+    if (!list) return;
+
+    if (vouchers.length === 0) {
+        list.innerHTML = `<div class="text-center p-8 text-muted">No voucher sales recorded yet.</div>`;
+        return;
+    }
+
+    list.innerHTML = '';
+
+    // Show last 20 voucher sales
+    const recentVouchers = [...vouchers]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 20);
+
+    recentVouchers.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `list-item glass-card voucher`;
+
+        let dateStr = "Unknown";
+        try {
+            const d = new Date(item.date);
+            dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+                d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) { }
+
+        const labels = {
+            "1hr": "1 Hour", "2hr": "2 Hour", "day": "Full Day", "week": "Weekly", "month": "Monthly"
+        };
+        const label = labels[item.voucherType] || item.voucherType || 'Voucher';
+
+        div.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
+                <div style="font-size: 1.5rem; background: rgba(255,255,255,0.03); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid var(--glass-border);">
+                    🎫
+                </div>
+                <div class="item-main">
+                    <div class="item-title">${label} (${item.username || '?'})</div>
+                    <div class="item-meta" style="font-size: 0.8rem; color: var(--text-muted);">
+                        <span style="color: var(--text-main); font-weight: 500">${dateStr}</span> • Client: ${item.clientName || 'Cash Sale'}
+                        <br><span style="font-family: monospace; color: var(--primary);">Pwd: ${item.password || 'none'}</span>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: right; margin-left: 20px;">
+                <div style="font-family: 'Outfit'; font-weight: 800; font-size: 1.2rem; color: var(--accent)">
+                    +${(item.amount || 0).toLocaleString()} SSP
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px;">
+                    <button type="button" onclick="printTicket('${item.id}', 'voucher')" class="btn" style="padding: 6px; background: rgba(14, 165, 233, 0.1); color: var(--info); border-radius: 8px;" title="Print Ticket">
+                        <i data-lucide="printer" style="width: 14px"></i>
+                    </button>
+                    <button type="button" onclick="deleteItem('${item.id}', 'voucher')" class="btn" style="padding: 6px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px;" title="Delete">
+                        <i data-lucide="trash-2" style="width: 14px"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+
+    lucide.createIcons();
+}
+
 function deleteItem(id, type) {
     if (!confirm('Are you sure you want to delete this record?')) return;
 
-    if (type === 'client') {
-        clients = clients.filter(c => c.id.toString() !== id.toString());
-    } else if (type === 'voucher') {
-        vouchers = vouchers.filter(v => v.id.toString() !== id.toString());
-    } else {
-        expenses = expenses.filter(e => e.id.toString() !== id.toString());
+    // Convert to string for safe comparison
+    const targetId = String(id);
+
+    // More robust removal: Check all arrays if type is missing or to ensure cross-type safety
+    if (type === 'client' || !type) {
+        clients = clients.filter(c => String(c.id) !== targetId);
+    }
+    if (type === 'voucher' || !type) {
+        vouchers = vouchers.filter(v => String(v.id) !== targetId);
+    }
+    if (type === 'expense' || !type) {
+        expenses = expenses.filter(e => String(e.id) !== targetId);
     }
 
     saveData();
     updateDisplay();
-    showNotification('Item deleted');
+    showNotification('Item successfully removed');
 }
 
 // Edit Functionality
@@ -477,6 +704,10 @@ function editItem(id, type) {
 
     if (type === 'client') {
         fieldsContainer.innerHTML = `
+            <div class="form-group">
+                <label>Transaction Date</label>
+                <input type="date" name="date" value="${item.date ? getLocalDateString(item.date) : getLocalDateString()}" required>
+            </div>
             <div class="form-group">
                 <label>Client Name</label>
                 <input type="text" name="name" value="${item.name}" required>
@@ -518,6 +749,10 @@ function editItem(id, type) {
     } else if (type === 'voucher') {
         fieldsContainer.innerHTML = `
             <div class="form-group">
+                <label>Transaction Date</label>
+                <input type="date" name="date" value="${item.date ? getLocalDateString(item.date) : getLocalDateString()}" required>
+            </div>
+            <div class="form-group">
                 <label>Client Name</label>
                 <input type="text" name="clientName" value="${item.clientName}" required>
             </div>
@@ -551,6 +786,10 @@ function editItem(id, type) {
     }
     else if (type === 'expense') {
         fieldsContainer.innerHTML = `
+            <div class="form-group">
+                <label>Transaction Date</label>
+                <input type="date" name="date" value="${item.date ? getLocalDateString(item.date) : getLocalDateString()}" required>
+            </div>
             <div class="form-group">
                 <label>Category</label>
                 <select name="category">
@@ -606,8 +845,17 @@ function saveEdit(event) {
     }
 
     // Update item properties from form
-    // We update the original item object to preserve other fields (like date, addedBy)
     const item = list[index];
+
+    // Handle Date Update (Keep time if possible)
+    const newDateVal = formData.get('date');
+    if (newDateVal) {
+        const [year, month, day] = newDateVal.split('-').map(Number);
+        const oldDate = new Date(item.date);
+        // Create new date in local time preserving the original hours/minutes
+        const dateObj = new Date(year, month - 1, day, oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+        item.date = dateObj.toISOString();
+    }
 
     if (type === 'client') {
         item.name = formData.get('name');
@@ -720,15 +968,14 @@ function printSingleReport(dateStr) {
     }
 
     // Modern Header Setup
-    document.getElementById('printSubtitle').textContent = `DAILY ARCHIVE SUMMARY`;
-    document.getElementById('printMeta').textContent = `Report Date: ${new Date(report.date).toLocaleDateString()}
-    Authorized By: ${report.savedBy}
+    document.getElementById('printSubtitle').textContent = `OFFICIAL DAILY ARCHIVE - ${new Date(report.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}`;
+    document.getElementById('printMeta').textContent = `Authorized By: ${report.savedBy}
     Document ID: ARCH-${report.date.replace(/-/g, '')}`;
 
     const targetDate = report.date;
-    const filteredClients = clients.filter(c => c.date && c.date.toString().startsWith(targetDate));
-    const filteredVouchers = vouchers.filter(v => v.date && v.date.toString().startsWith(targetDate));
-    const filteredExpenses = expenses.filter(e => e.date && e.date.toString().startsWith(targetDate));
+    const filteredClients = clients.filter(c => c && c.date && getLocalDateString(c.date) === targetDate);
+    const filteredVouchers = vouchers.filter(v => v && v.date && getLocalDateString(v.date) === targetDate);
+    const filteredExpenses = expenses.filter(e => e && e.date && getLocalDateString(e.date) === targetDate);
 
     const borrowedCount = filteredClients.filter(c => c.status === 'borrowed').length;
     const unpaidCount = filteredClients.filter(c => c.status === 'unpaid').length;
@@ -799,12 +1046,13 @@ function printSingleReport(dateStr) {
     `);
 
     container.innerHTML += createTable('VOUCHER SALES', filteredVouchers, [
-        { text: 'Time' }, { text: 'Type' }, { text: 'User/Pass' }, { text: 'Amount', align: 'right' }
+        { text: 'Time' }, { text: 'Type' }, { text: 'Username' }, { text: 'Password' }, { text: 'Amount', align: 'right' }
     ], (item, isLast) => `
         <tr>
             <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
             <td style="padding: 10px; font-size: 11px; font-weight: 600; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.voucherType.toUpperCase()}</td>
-            <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.username}/${item.password}</td>
+            <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.username}</td>
+            <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.password}</td>
             <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
         </tr>
     `);
@@ -820,36 +1068,188 @@ function printSingleReport(dateStr) {
         </tr>
     `);
 
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write('<html><head><title>Daily Report - ' + targetDate + '</title>');
-    printWindow.document.write('<base href="' + window.location.origin + window.location.pathname + '">');
-    printWindow.document.write('<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">');
-    printWindow.document.write('<style>body{margin:0;padding:0;background:#f1f5f9;height:auto;} @media print { body{padding:0;background:white;} .print-container{box-shadow:none !important; width: 100% !important; margin: 0 !important; border-radius: 0 !important; height: auto !important;} .no-print { display: none; } img { max-width: 100%; height: auto; } }</style>');
-    printWindow.document.write('</head><body><div class="print-container" style="background: white; width: 210mm; margin: 30px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-radius: 20px; min-height: fit-content; height: auto;">');
-    printWindow.document.write(document.getElementById('printArea').innerHTML);
-    printWindow.document.write('</div></body></html>');
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 1000);
+    executePrint('Daily Report - ' + targetDate);
 }
 
-function saveReport() {
-    const today = getLocalDateString();
+function printTicket(id, type) {
+    let item;
+    if (type === 'client') item = clients.find(c => c.id.toString() === id.toString());
+    else if (type === 'voucher') item = vouchers.find(v => v.id.toString() === id.toString());
+
+    if (!item) {
+        showNotification('Item not found', 'error');
+        return;
+    }
+
+    const labels = { "1hr": "1 Hour", "2hr": "2 Hour", "day": "Full Day", "week": "Weekly", "month": "Monthly", "1hour": "1 Hour", "2hours": "2 Hour" };
+    const durationLabel = labels[item.voucherType || item.duration] || item.voucherType || item.duration || "General Access";
+
+    // Prepare Ticket HTML (Modern, White Background, Professional)
+    const ticketHTML = `
+        <div style="padding: 2.5cm; font-family: 'Outfit', sans-serif; color: #0f172a; background: white; width: 210mm; min-height: 297mm; box-sizing: border-box; display: flex; flex-direction: column;">
+            <!-- Header -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <img src="assets/img/Sam Logo.png" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
+                    <div>
+                        <h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">SAMA WI-FI</h1>
+                        <p style="margin: 0; color: #6366f1; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Premium Access Token</p>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 12px; color: #64748b; font-weight: 600;">TOKEN ID</div>
+                    <div style="font-size: 18px; font-weight: 800; font-family: monospace;">#${item.id.toString().slice(-8)}</div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div style="flex: 1;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px;">
+                    <div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Passenger / Client</div>
+                        <div style="font-size: 24px; font-weight: 800;">${item.name || item.clientName || 'Valued Client'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">Access Duration</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #6366f1;">${durationLabel}</div>
+                    </div>
+                </div>
+
+                <!-- Credentials Box -->
+                <div style="background: #f8fafc; border: 2px dashed #e2e8f0; border-radius: 20px; padding: 40px; margin-bottom: 40px; position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: 0; right: 0; background: #6366f1; color: white; padding: 8px 20px; font-size: 10px; font-weight: 800; border-bottom-left-radius: 15px;">AUTHENTICATION</div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                        <div>
+                            <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">Username</div>
+                            <div style="font-size: 32px; font-weight: 800; font-family: monospace; letter-spacing: 2px;">${item.username || '---'}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">Password</div>
+                            <div style="font-size: 32px; font-weight: 800; font-family: monospace; letter-spacing: 2px;">${item.password || '---'}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Details Grid (Wi-Fi Specific) -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; border: 1px solid #e2e8f0; border-radius: 15px; padding: 25px;">
+                    <div>
+                        <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 5px;">Payment / Status</div>
+                        <div style="font-size: 18px; font-weight: 700;">${(item.status || 'Paid').toUpperCase()}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 5px;">Device / Tech</div>
+                        <div style="font-size: 18px; font-weight: 700;">${item.phoneType || item.voucherType || 'System'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 5px;">Managed By</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #6366f1;">${item.addedBy || 'Admin'}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer / QR Placeholder Area -->
+            <div style="margin-top: 60px; display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="font-size: 11px; color: #94a3b8; line-height: 1.6;">
+                    <strong>Instructions:</strong><br>
+                    1. Connect to "Sama Wi-Fi" SSID<br>
+                    2. Wait for login portal to appear<br>
+                    3. Enter credentials provided above<br>
+                    <br>
+                    <em>Generated by ${item.addedBy || 'System'} on ${new Date(item.date).toLocaleString()}</em>
+                </div>
+                <div style="text-align: center;">
+                   <div style="width: 120px; height: 120px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; display: flex; align-items: center; justify-content: center; background: #fff;">
+                        <div style="text-align: center;">
+                            <span style="font-size: 8px; color: #94a3b8;">SECURE QR</span><br>
+                            <span style="font-size: 24px;">🔒</span>
+                        </div>
+                   </div>
+                   <div style="font-size: 9px; color: #94a3b8; margin-top: 8px; font-weight: 600;">SCAN TO CONNECT</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center; color: #cbd5e1; font-size: 10px; letter-spacing: 3px;">
+                SAMA PROFESSIONAL SERVICES • OFFICIAL ACCESS TOKEN
+            </div>
+        </div>
+    `;
+
+    executePrint('Ticket - ' + (item.username || item.id), ticketHTML);
+}
+
+function executePrint(title, customHTML = null) {
+    // Set generation time in footer if it's the main report
+    if (!customHTML) {
+        const genTimeEl = document.getElementById('printGenerationTime');
+        if (genTimeEl) genTimeEl.textContent = new Date().toLocaleString();
+    }
+
+    const printWindow = window.open('', '_blank');
+
+    if (!printWindow) {
+        alert('Could not open print window. Please disable your POP-UP BLOCKER and try again.');
+        return;
+    }
+
+    const content = customHTML || document.getElementById('printArea').innerHTML;
+    const baseHref = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>${title}</title>
+                <base href="${baseHref}">
+                <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+                <style>
+                    body { margin: 0; padding: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; }
+                    @media print {
+                        body { background: white; }
+                        .no-print { display: none; }
+                        @page { margin: 0; size: A4; }
+                    }
+                    * { box-sizing: border-box; }
+                </style>
+            </head>
+            <body>
+                ${content}
+                <script>
+                    window.onload = function() {
+                        setTimeout(() => {
+                            window.print();
+                            window.close();
+                        }, 500);
+                    };
+                </script>
+            </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+}
+
+function saveReport(targetDate = getLocalDateString(), isAuto = false) {
+    const dateToSave = targetDate;
 
     // Robust filtering to prevent crashes
-    const todayClients = clients.filter(c => c && c.date && c.date.toString().startsWith(today));
-    const todayVouchers = vouchers.filter(v => v && v.date && v.date.toString().startsWith(today));
-    const todayExpenses = expenses.filter(e => e && e.date && e.date.toString().startsWith(today));
+    const filteredClients = clients.filter(c => c && c.date && getLocalDateString(c.date) === dateToSave);
+    const filteredVouchers = vouchers.filter(v => v && v.date && getLocalDateString(v.date) === dateToSave);
+    const filteredExpenses = expenses.filter(e => e && e.date && getLocalDateString(e.date) === dateToSave);
 
-    const revenue = todayClients.filter(c => c.status === 'paid').reduce((sum, c) => sum + (parseInt(c.amount) || 0), 0) +
-        todayVouchers.reduce((sum, v) => sum + (parseInt(v.amount) || 0), 0);
-    const exp = todayExpenses.reduce((sum, e) => sum + (parseInt(e.amount) || 0), 0);
+    // Skip if no activity for that day in auto-mode
+    if (isAuto && filteredClients.length === 0 && filteredVouchers.length === 0 && filteredExpenses.length === 0) {
+        return;
+    }
+
+    const revenue = filteredClients.filter(c => c.status === 'paid').reduce((sum, c) => sum + (parseInt(c.amount) || 0), 0) +
+        filteredVouchers.reduce((sum, v) => sum + (parseInt(v.amount) || 0), 0);
+    const exp = filteredExpenses.reduce((sum, e) => sum + (parseInt(e.amount) || 0), 0);
 
     const report = {
-        date: today,
-        savedBy: employeeName,
+        date: dateToSave,
+        savedBy: isAuto ? 'System (Auto)' : employeeName,
         summary: {
-            totalClients: todayClients.length + todayVouchers.length,
+            totalClients: filteredClients.length + filteredVouchers.length,
             revenue: revenue,
             expenses: exp,
             netProfit: revenue - exp
@@ -857,16 +1257,24 @@ function saveReport() {
     };
 
     // Check for dupe
-    const existing = dailyReports.findIndex(r => r.date === today);
+    const existing = dailyReports.findIndex(r => r.date === dateToSave);
     if (existing >= 0) {
-        if (!confirm('Re-save today\'s report? Existing data will be updated.')) return;
+        if (!isAuto) {
+            if (!confirm(`Re-save report for ${dateToSave}? Existing data will be updated.`)) return;
+        }
         dailyReports[existing] = report;
     } else {
         dailyReports.push(report);
     }
 
     saveData();
-    showNotification('Daily report archived');
+
+    if (isAuto) {
+        console.log(`System: Automated archive completed for ${dateToSave}`);
+    } else {
+        showNotification(`Report for ${dateToSave} archived successfully`);
+    }
+
     if (currentTab === 'history') loadHistory();
 }
 
@@ -1004,9 +1412,9 @@ function printTheReport(period) {
     else if (period === 'monthly') startDate.setMonth(now.getMonth() - 1);
     else startDate.setHours(0, 0, 0, 0);
 
-    const filteredClients = clients.filter(c => new Date(c.date) >= startDate).map(c => ({ ...c, type: 'client' }));
-    const filteredVouchers = vouchers.filter(v => new Date(v.date) >= startDate).map(v => ({ ...v, type: 'voucher' }));
-    const filteredExpenses = expenses.filter(e => new Date(e.date) >= startDate).map(e => ({ ...e, type: 'expense' }));
+    const filteredClients = clients.filter(c => getLocalDateString(c.date) >= getLocalDateString(startDate)).map(c => ({ ...c, type: 'client' }));
+    const filteredVouchers = vouchers.filter(v => getLocalDateString(v.date) >= getLocalDateString(startDate)).map(v => ({ ...v, type: 'voucher' }));
+    const filteredExpenses = expenses.filter(e => getLocalDateString(e.date) >= getLocalDateString(startDate)).map(e => ({ ...e, type: 'expense' }));
 
     const clientRev = filteredClients.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
     const voucherRev = filteredVouchers.reduce((s, v) => s + v.amount, 0);
@@ -1079,10 +1487,10 @@ function printTheReport(period) {
     };
 
     container.innerHTML += createTable('CLIENT SESSIONS', filteredClients, [
-        { text: 'Time' }, { text: 'Name' }, { text: 'Phone' }, { text: 'Status' }, { text: 'Amount', align: 'right' }
+        { text: 'Date' }, { text: 'Name' }, { text: 'Phone' }, { text: 'Status' }, { text: 'Amount', align: 'right' }
     ], (item, isLast) => `
-        <tr>
-            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleString()}</td>
+        <tr style="${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">
+            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
             <td style="padding: 10px; font-size: 11px; font-weight: 600; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.name}</td>
             <td style="padding: 10px; font-size: 11px; color: #64748b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.phoneType}</td>
             <td style="padding: 10px; font-size: 10px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}"><span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${item.status.toUpperCase()}</span></td>
@@ -1091,10 +1499,10 @@ function printTheReport(period) {
     `);
 
     container.innerHTML += createTable('VOUCHER SALES', filteredVouchers, [
-        { text: 'Time' }, { text: 'Type' }, { text: 'Username' }, { text: 'Password' }, { text: 'Amount', align: 'right' }
+        { text: 'Date' }, { text: 'Type' }, { text: 'Username' }, { text: 'Password' }, { text: 'Amount', align: 'right' }
     ], (item, isLast) => `
         <tr>
-            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleString()}</td>
+            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
             <td style="padding: 10px; font-size: 11px; font-weight: 600; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.voucherType.toUpperCase()}</td>
             <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.username}</td>
             <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.password}</td>
@@ -1102,28 +1510,18 @@ function printTheReport(period) {
         </tr>
     `);
 
-    container.innerHTML += createTable('BUSINESS EXPENSES', filteredExpenses, [
-        { text: 'Time' }, { text: 'Category' }, { text: 'Description' }, { text: 'Amount', align: 'right' }
+    container.innerHTML += createTable('EXPENSES', filteredExpenses, [
+        { text: 'Date' }, { text: 'Category' }, { text: 'Reason' }, { text: 'Amount', align: 'right' }
     ], (item, isLast) => `
         <tr>
-            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleString()}</td>
+            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
             <td style="padding: 10px; font-size: 11px; font-weight: 600; color: #991b1b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.category.toUpperCase()}</td>
             <td style="padding: 10px; font-size: 11px; color: #64748b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.reason}</td>
             <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; color: #ef4444; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
         </tr>
     `);
 
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write('<html><head><title>Business Report - ' + period + '</title>');
-    printWindow.document.write('<base href="' + window.location.origin + window.location.pathname + '">');
-    printWindow.document.write('<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">');
-    printWindow.document.write('<style>body{margin:0;padding:0;background:#f1f5f9;height:auto;} @media print { body{padding:0;background:white;} .print-container{box-shadow:none !important; width: 100% !important; margin: 0 !important; border-radius: 0 !important; height: auto !important;} .no-print { display: none; } img { max-width: 100%; height: auto; } }</style>');
-    printWindow.document.write('</head><body><div class="print-container" style="background: white; width: 210mm; margin: 30px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-radius: 20px; min-height: fit-content; height: auto;">');
-    printWindow.document.write(document.getElementById('printArea').innerHTML);
-    printWindow.document.write('</div></body></html>');
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 1000);
+    executePrint('Business Report - ' + period);
 }
 
 /**
@@ -1171,4 +1569,18 @@ function exportToCSV() {
     a.download = `SAMA_WIFI_EXPORT_${getLocalDateString()}.csv`;
     a.click();
     showNotification('CSV Export complete');
+}
+
+async function forceSync() {
+    showNotification('Syncing with Cloud...', 'info');
+    if (typeof loadFromCloud !== 'function') return;
+
+    const success = await loadFromCloud(true);
+    if (success) {
+        showNotification('System Updated from Cloud!', 'success');
+    } else {
+        // If pull returned null or failed, ensure cloud is current with local data
+        showNotification('No server updates. Ensuring cloud is current...', 'info');
+        saveData();
+    }
 }

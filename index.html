@@ -18,7 +18,8 @@
     <!-- Charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase Configuration -->
+    <script src="assets/js/db-manager.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -26,18 +27,7 @@
         // Share firestore functions with db-manager.js
         window.firebaseFirestore = { doc, setDoc, getDoc };
 
-        // Your web app's Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyBKABIACk4_APhXaWSUVsdhT4QUC_7xYCY",
-            authDomain: "sama-wi-fi-a0095.firebaseapp.com",
-            projectId: "sama-wi-fi-a0095",
-            storageBucket: "sama-wi-fi-a0095.firebasestorage.app",
-            messagingSenderId: "722933496018",
-            appId: "1:722933496018:web:8de74cc6a76fbcbbead50b",
-            measurementId: "G-2JQPYMSQ68"
-        };
-
-        // Initialize Firebase
+        // Initialize Firebase using config from db-manager.js
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
@@ -75,20 +65,23 @@
     <div id="loginPage" class="login-screen">
         <div class="glass-card login-card">
             <div class="login-logo-container">
-                <img src="assets/img/Sam Logo.png" alt="Sama Wi-Fi Logo" class="login-logo">
+                <img src="assets/img/Sam%20Logo.png" alt="Sama Wi-Fi Logo" class="login-logo">
             </div>
             <div class="login-header">
-                <h1>Sama Wi-Fi</h1>
+                <span class="text-gradient h1-style">Sama Wi-Fi</span>
                 <p class="login-subtitle">Master Control Panel</p>
             </div>
 
             <form onsubmit="event.preventDefault(); login(this.username.value, this.password.value)">
                 <div class="login-input-group">
-                    <input type="text" name="username" placeholder="Username" required autocomplete="username">
+                    <label for="loginUser" class="hidden">Username</label>
+                    <input type="text" id="loginUser" name="username" placeholder="Username" required
+                        autocomplete="username">
                     <i data-lucide="user" style="width: 20px"></i>
                 </div>
                 <div class="login-input-group">
-                    <input type="password" name="password" placeholder="Password" required
+                    <label for="loginPass" class="hidden">Password</label>
+                    <input type="password" id="loginPass" name="password" placeholder="Password" required
                         autocomplete="current-password">
                     <i data-lucide="lock" style="width: 20px"></i>
                 </div>
@@ -96,8 +89,8 @@
                     Authenticate System <i data-lucide="arrow-right" style="width: 18px"></i>
                 </button>
                 <div style="margin-top: 15px; text-align: right;">
-                    <a href="javascript:void(0)" onclick="handleForgotPassword()" class="forgot-link">Forgot
-                        Password?</a>
+                    <a href="javascript:void(0)" onclick="handleForgotPassword()" class="forgot-link"
+                        title="Use your recovery key to reset your session">Forgot Password / Recovery?</a>
                 </div>
             </form>
 
@@ -114,19 +107,24 @@
         <!-- Premium Header -->
         <header class="main-header">
             <div style="display: flex; align-items: center; gap: 16px;">
-                <img src="assets/img/Sam Logo.png" alt="Logo"
+                <img src="assets/img/Sam%20Logo.png" alt="Logo"
                     style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 1px solid var(--glass-border); filter: drop-shadow(0 0 8px var(--primary-glow))">
                 <div>
                     <h1 class="text-gradient" style="font-size: 1.8rem; line-height: 1">Sama Wi-Fi</h1>
                     <p id="currentDate" class="text-muted" style="font-size: 0.8rem; margin: 0"></p>
                 </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <div class="glass-card" style="padding: 8px 16px; border-radius: 12px; font-size: 0.9rem;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="glass-card"
+                    style="padding: 8px 16px; border-radius: 12px; font-size: 0.85rem; background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%); border: 1px solid rgba(255,255,255,0.2); color: white; font-weight: 600; display: flex; align-items: center; gap: 6px;">
                     👤 <span id="employeeNameDisplay">Admin</span>
                 </div>
+                <button onclick="forceSync()" class="btn"
+                    style="background: linear-gradient(135deg, var(--info) 0%, #0369a1 100%); color: white; padding: 8px 16px; font-size: 0.75rem; border: none; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3); font-weight: 700;">
+                    🔄 Sync Now
+                </button>
                 <button onclick="logout()" class="btn"
-                    style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+                    style="background: linear-gradient(135deg, var(--danger) 0%, #be123c 100%); color: white; padding: 8px 16px; font-size: 0.75rem; border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3); font-weight: 700;">
                     Logout
                 </button>
             </div>
@@ -203,46 +201,47 @@
                     <h2 class="mb-4">Quick Add Client</h2>
                     <form onsubmit="addClient(event)">
                         <div class="form-group">
-                            <label>Client Name</label>
-                            <input type="text" name="clientName" placeholder="Full Name" required>
+                            <label for="clientName">Client Name</label>
+                            <input type="text" id="clientName" name="clientName" placeholder="Full Name" required>
                         </div>
                         <div class="form-group">
-                            <label>Phone Type</label>
-                            <input type="text" name="phoneType" placeholder="e.g. iPhone, Samsung, Laptop" required>
+                            <label for="phoneType">Phone Type</label>
+                            <input type="text" id="phoneType" name="phoneType"
+                                placeholder="e.g. iPhone, Samsung, Laptop" required>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                             <div class="form-group">
-                                <label>Duration</label>
-                                <select name="duration" onchange="
-                                    var clientPrices = { '1hour': 1000, '2hours': 1500, 'daily': 2000, 'weekly': 14000, 'monthly': 60000 };
+                                <label for="duration">Duration</label>
+                                <select id="duration" name="duration" onchange="
+                                    var clientPrices = { '1hr': 1000, '2hr': 1500, 'day': 2000, 'week': 14000, 'month': 60000 };
                                     this.form.amount.value = clientPrices[this.value] || 0;
                                     this.form.amount.readOnly = (this.value !== 'custom');
                                 ">
                                     <option value="" disabled selected>Select duration...</option>
-                                    <option value="1hour">1 Hour (1,000 SSP)</option>
-                                    <option value="2hours">2 Hours (1,500 SSP)</option>
-                                    <option value="daily">Full Day (2,000 SSP)</option>
-                                    <option value="weekly">Weekly (14,000 SSP)</option>
-                                    <option value="monthly">Monthly (60,000 SSP)</option>
+                                    <option value="1hr">1 Hour (1,000 SSP)</option>
+                                    <option value="2hr">2 Hours (1,500 SSP)</option>
+                                    <option value="day">Full Day (2,000 SSP)</option>
+                                    <option value="week">Weekly (14,000 SSP)</option>
+                                    <option value="month">Monthly (60,000 SSP)</option>
                                     <option value="custom">Custom Price</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Amount (SSP)</label>
-                                <input type="number" name="amount" placeholder="0" required>
+                                <label for="amount">Amount (SSP)</label>
+                                <input type="number" id="amount" name="amount" placeholder="0" required>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label>Payment Status</label>
-                            <select name="paymentStatus">
+                            <label for="paymentStatus">Payment Status</label>
+                            <select id="paymentStatus" name="paymentStatus">
                                 <option value="paid">✅ Fully Paid</option>
                                 <option value="unpaid">⏳ Unpaid</option>
                                 <option value="borrowed">🤝 Borrowed</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Internal Notes</label>
-                            <textarea name="notes" placeholder="Any details..."></textarea>
+                            <label for="notes">Internal Notes</label>
+                            <textarea id="notes" name="notes" placeholder="Any details..."></textarea>
                         </div>
                         <button type="submit" class="btn btn-primary" style="width: 100%">Register Client</button>
                     </form>
@@ -254,10 +253,12 @@
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h2 style="margin: 0">Today's Activity</h2>
                         <div style="display: flex; gap: 8px;">
-                            <input type="date" id="filterDate" onchange="updateDisplay()"
-                                style="padding: 6px 12px; font-size: 0.8rem; width: auto;">
-                            <input type="text" id="searchBox" placeholder="Search..." onkeyup="updateDisplay()"
-                                style="padding: 6px 12px; font-size: 0.8rem; width: 150px;">
+                            <label for="filterDate" class="hidden">Filter Date</label>
+                            <input type="date" id="filterDate" class="date-input" onchange="updateDisplay()"
+                                title="Filter activity by date">
+                            <label for="searchBox" class="hidden">Search Activity</label>
+                            <input type="text" id="searchBox" class="search-input" placeholder="Search..."
+                                onkeyup="updateDisplay()" title="Search through activity">
                         </div>
                     </div>
                     <div id="transactionList" class="transaction-list">
@@ -304,8 +305,8 @@
 
                     <form onsubmit="addVoucher(event)">
                         <div class="form-group">
-                            <label>Voucher Type</label>
-                            <select name="voucherType" onchange="
+                            <label for="sellVoucherType">Voucher Type</label>
+                            <select id="sellVoucherType" name="voucherType" onchange="
                                 var vPrices = { '1hr': 1000, '2hr': 1500, 'day': 2000, 'week': 14000, 'month': 60000 };
                                 this.form.voucherAmount.value = vPrices[this.value] || 0;
                             ">
@@ -318,21 +319,23 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Amount (SSP)</label>
-                            <input type="number" name="voucherAmount" placeholder="0" required readonly
-                                style="background: rgba(255,255,255,0.02); opacity: 0.8;">
+                            <label for="voucherAmount">Amount (SSP)</label>
+                            <input type="number" id="voucherAmount" name="voucherAmount" placeholder="0" required
+                                readonly style="background: rgba(255,255,255,0.02); opacity: 0.8;">
                         </div>
                         <div class="form-group">
-                            <label>username</label>
-                            <input type="text" name="voucherUsername" placeholder="Enter username" required>
+                            <label for="voucherUsername">Username</label>
+                            <input type="text" id="voucherUsername" name="voucherUsername" placeholder="Enter username"
+                                required>
                         </div>
                         <div class="form-group">
-                            <label>password</label>
-                            <input type="text" name="voucherPassword" placeholder="Enter password" required>
+                            <label for="voucherPassword">Password</label>
+                            <input type="text" id="voucherPassword" name="voucherPassword" placeholder="Enter password"
+                                required>
                         </div>
                         <div class="form-group">
-                            <label>Client Name (Optional)</label>
-                            <input type="text" name="voucherClient" placeholder="Who is buying?">
+                            <label for="voucherClient">Client Name (Optional)</label>
+                            <input type="text" id="voucherClient" name="voucherClient" placeholder="Who is buying?">
                         </div>
                         <button type="submit" class="btn btn-primary" style="width: 100%; background: #c084fc">Sell
                             Voucher</button>
@@ -342,9 +345,8 @@
                 <div class="glass-card">
                     <h2 class="mb-4">Recent Voucher Sales</h2>
                     <div id="voucherHistory" class="transaction-list">
-                        <!-- Voucher specific list could go here, or we use the main activity list -->
-                        <p class="text-muted text-center p-8">Voucher sales will appear in the "Manage Clients" daily
-                            activity list.</p>
+                        <p class="text-muted text-center p-8">Voucher sales will appear in the "Manage" daily activity
+                            list.</p>
                     </div>
                 </div>
             </div>
@@ -357,9 +359,9 @@
                     <h2 class="mb-4">Record New Expense</h2>
                     <form onsubmit="addExpense(event)">
                         <div class="form-group">
-                            <label>Expense Category</label>
-                            <select name="expenseCategory">
-                                <option value="lunch">🍽️ Food</option>
+                            <label for="expenseCategory">Expense Category</label>
+                            <select id="expenseCategory" name="expenseCategory">
+                                <option value="lunch">🍽️ Lunch / Food</option>
                                 <option value="tea">☕ Tea / Drinks</option>
                                 <option value="maintenance">🔧 Maintenance</option>
                                 <option value="transport">🚗 Transport</option>
@@ -368,16 +370,17 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Description / Reason</label>
-                            <input type="text" name="expenseReason" placeholder="What was this for?" required>
+                            <label for="expenseReason">Description / Reason</label>
+                            <input type="text" id="expenseReason" name="expenseReason" placeholder="What was this for?"
+                                required>
                         </div>
                         <div class="form-group">
-                            <label>Amount (SSP)</label>
-                            <input type="number" name="expenseAmount" required>
+                            <label for="expenseAmount">Amount (SSP)</label>
+                            <input type="number" id="expenseAmount" name="expenseAmount" required>
                         </div>
                         <div class="form-group">
-                            <label>Person Responsible</label>
-                            <input type="text" name="personName" placeholder="Who spent this?">
+                            <label for="personName">Person Responsible</label>
+                            <input type="text" id="personName" name="personName" placeholder="Who spent this?">
                         </div>
                         <button type="submit" class="btn btn-primary"
                             style="width: 100%; background: var(--danger)">Record Expense</button>
@@ -397,12 +400,12 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h3 style="margin: 0">Generate Analytical Report</h3>
                     <div style="display: flex; gap: 10px;">
-                        <select id="reportPeriod" style="padding: 8px; width: auto;">
+                        <select id="reportPeriod" aria-label="Select report period" style="padding: 8px; width: auto;">
                             <option value="daily">Daily Report</option>
                             <option value="weekly">Weekly Summary</option>
                             <option value="monthly">Monthly Statement</option>
                         </select>
-                        <button onclick="generateReport()" class="btn btn-primary">Generate</button>
+                        <button type="button" onclick="generateReport()" class="btn btn-primary">Generate</button>
                     </div>
                 </div>
                 <div id="reportPreview" class="hidden"
@@ -428,11 +431,11 @@
             <div class="glass-card" style="max-width: 600px; margin: 0 auto;">
                 <h2 class="mb-4">System Settings</h2>
                 <div class="form-group">
-                    <label>Employee Name</label>
+                    <label for="employeeNameInput">Employee Name</label>
                     <div style="display: flex; gap: 8px;">
                         <input type="text" id="employeeNameInput" placeholder="Enter name">
-                        <button
-                            onclick="employeeName = document.getElementById('employeeNameInput').value; saveData(); location.reload();"
+                        <button type="button"
+                            onclick="const nameVal = document.getElementById('employeeNameInput').value; if(nameVal){ employeeName = nameVal; saveData(); location.reload(); }"
                             class="btn btn-primary">Save</button>
                     </div>
                 </div>
@@ -442,20 +445,20 @@
                 <h3 class="mb-4">Administrator Security</h3>
                 <div class="glass-card mb-4" style="background: rgba(239, 68, 68, 0.05);">
                     <div class="form-group">
-                        <label>Login Credentials</label>
-                        <input type="password" id="oldPassInput" placeholder="Verify Current Password" class="mb-4"
+                        <label for="oldPassInput">Verify Current Password</label>
+                        <input type="password" id="oldPassInput" placeholder="Verify Current Password"
                             style="margin-bottom: 12px">
 
                         <div class="form-group" style="margin-top: 12px">
-                            <label>New Username</label>
+                            <label for="newUsernameInput">New Username</label>
                             <input type="text" id="newUsernameInput" placeholder="Enter new username">
                         </div>
 
                         <div class="form-group" style="margin-top: 15px;">
-                            <label>New Password (Optional)</label>
+                            <label for="newPassInput">New Password (Optional)</label>
                             <div style="display: flex; gap: 8px;">
                                 <input type="password" id="newPassInput" placeholder="Leave empty to keep old">
-                                <button
+                                <button type="button"
                                     onclick="updateSecurity(document.getElementById('newUsernameInput').value, document.getElementById('oldPassInput').value, document.getElementById('newPassInput').value)"
                                     class="btn btn-primary" style="background: var(--danger); white-space: nowrap;">Save
                                     Changes</button>
@@ -484,7 +487,7 @@
                 <h3 class="mb-4">Inventory Management (Restock)</h3>
                 <div class="glass-card mb-4" style="background: rgba(16, 185, 129, 0.05);">
                     <div class="form-group">
-                        <label>Select Voucher Type to Restock</label>
+                        <label for="restockType">Select Voucher Type to Restock</label>
                         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
                             <div style="flex: 2; min-width: 150px;">
                                 <select id="restockType">
@@ -496,9 +499,10 @@
                                 </select>
                             </div>
                             <div style="flex: 1; min-width: 100px;">
+                                <label for="restockAmount" class="hidden">Quantity</label>
                                 <input type="number" id="restockAmount" placeholder="Qty" min="1" value="10">
                             </div>
-                            <button
+                            <button type="button"
                                 onclick="restockVoucher(document.getElementById('restockType').value, document.getElementById('restockAmount').value)"
                                 class="btn btn-primary" style="background: var(--accent); white-space: nowrap;">
                                 Add to Stock
@@ -571,7 +575,7 @@
                 style="display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
                 <div
                     style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid #6366f1; padding: 5px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; background: #f8fafc;">
-                    <img src="assets/img/Sam Logo.png" alt="Logo"
+                    <img src="assets/img/Sam%20Logo.png" alt="Logo"
                         style="height: 80px; width: 80px; object-fit: contain; border-radius: 50%;">
                 </div>
                 <div>
@@ -605,7 +609,7 @@
                     Official Document • High Accuracy Reporting
                 </div>
                 <div style="text-align: right;">
-                    Generated on ${new Date().toLocaleString()}<br>
+                    Generated on <span id="printGenerationTime"></span><br>
                     &copy; 2026 Sama Professional Services
                 </div>
             </div>
@@ -613,18 +617,12 @@
     </div>
 
     <!-- Core Scripts -->
-    <script src="assets/js/db-manager.js"></script>
     <script src="assets/js/app.js"></script>
     <script>
-        // Init UI States
-        if (localStorage.getItem('wifi_cloud_enabled') === 'true') {
-            const btn = document.getElementById('cloudToggleBtn');
-            btn.textContent = 'ON (ACTIVE)';
-            btn.style.background = 'var(--accent)';
-        }
-
-        // Init Lucide Icons
-        setTimeout(() => lucide.createIcons(), 100);
+        // Init Lucide Icons safely after DOM load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
+        });
     </script>
 </body>
 
