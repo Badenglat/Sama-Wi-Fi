@@ -1,7 +1,15 @@
-const CACHE_NAME = 'sama-wifi-v2';
+const CACHE_NAME = 'sama-wifi-v3';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
+    './manifest.json',
+    './favicon.ico',
+    './apple-touch-icon.png',
+    './icon-192x192.png',
+    './icon-512x512.png',
+    './icon-144x144.png',
+    './icon-96x96.png',
+    './icon-72x72.png',
     './assets/css/modern-ui.css',
     './assets/js/app.js',
     './assets/js/db-manager.js',

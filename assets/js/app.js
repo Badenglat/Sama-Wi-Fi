@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadData();
     initializeAppUI();
     checkAuth();
+    checkForMissedArchives(); // Check if we missed any auto-archives while app was closed
 });
 
 function loadData() {
@@ -111,12 +112,18 @@ function initializeAppUI() {
         filterEl.dataset.lastAutoUpdate = todayStr;
     }
 
-    // 3. Set employee name
+    // 3. Initialize last auto update in localStorage if not set
+    if (!localStorage.getItem('wifi_last_auto_update')) {
+        localStorage.setItem('wifi_last_auto_update', todayStr);
+        console.log(`%c📅 Auto-Archive System Initialized for ${todayStr}`, 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
+    }
+
+    // 4. Set employee name
     document.getElementById('employeeNameDisplay').textContent = employeeName;
     const nameInput = document.getElementById('employeeNameInput');
     if (nameInput) nameInput.value = employeeName;
 
-    // 4. Cloud Toggle UI
+    // 5. Cloud Toggle UI
     const cloudBtn = document.getElementById('cloudToggleBtn');
     if (cloudBtn) {
         const isEnabled = localStorage.getItem('wifi_cloud_enabled') === 'true';
@@ -124,13 +131,19 @@ function initializeAppUI() {
         cloudBtn.style.background = isEnabled ? 'var(--accent)' : 'var(--secondary)';
     }
 
-    // 5. Display Recovery Key
+    // 6. Display Recovery Key
     const recoveryKeyEl = document.getElementById('recoveryKeyDisplay');
     if (recoveryKeyEl) {
         recoveryKeyEl.textContent = localStorage.getItem('wifi_recovery_key') || 'Not Set';
     }
 
-    // 6. Final UI Render
+    // 7. Display Recovery Email
+    const recoveryEmailInput = document.getElementById('recoveryEmailInput');
+    if (recoveryEmailInput) {
+        recoveryEmailInput.value = localStorage.getItem('wifi_recovery_email') || '';
+    }
+
+    // 8. Final UI Render
     updateDisplay();
 }
 
@@ -148,25 +161,77 @@ function checkDateRollover() {
     }
 
     // Detect Day Rollover for Auto-Archive
-    const filterEl = document.getElementById('filterDate');
-    if (filterEl && filterEl.dataset.lastAutoUpdate && filterEl.dataset.lastAutoUpdate !== today) {
-        const lastDate = filterEl.dataset.lastAutoUpdate;
+    // Use localStorage to persist last check date across sessions
+    const lastAutoUpdate = localStorage.getItem('wifi_last_auto_update') || today;
 
-        console.log(`Day Rollover detected: ${lastDate} -> ${today}. Auto-archiving...`);
+    if (lastAutoUpdate !== today) {
+        const lastDate = lastAutoUpdate;
+
+        console.log(`%c🔄 Day Rollover Detected: ${lastDate} → ${today}`, 'background: #6366f1; color: white; padding: 5px; border-radius: 3px;');
+        console.log(`Auto-archiving stats for ${lastDate}...`);
 
         // Auto-save the day that just ended
         saveReport(lastDate, true);
 
-        if (filterEl.value === lastDate) {
-            filterEl.value = today;
-            updateDisplay();
+        // Update the filter element if it exists
+        const filterEl = document.getElementById('filterDate');
+        if (filterEl) {
+            if (filterEl.value === lastDate) {
+                filterEl.value = today;
+                updateDisplay();
+            }
+            filterEl.dataset.lastAutoUpdate = today;
         }
-        filterEl.dataset.lastAutoUpdate = today;
+
+        // Persist to localStorage
+        localStorage.setItem('wifi_last_auto_update', today);
     }
 }
 
 // Check for day rollover every minute
 setInterval(checkDateRollover, 60000);
+
+// Check for Missed Archives on Startup
+function checkForMissedArchives() {
+    const today = getLocalDateString();
+    const lastAutoUpdate = localStorage.getItem('wifi_last_auto_update');
+
+    if (!lastAutoUpdate) {
+        console.log('%c📅 First time running auto-archive system', 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
+        localStorage.setItem('wifi_last_auto_update', today);
+        return;
+    }
+
+    if (lastAutoUpdate === today) {
+        console.log('%c✅ Auto-archive is up to date', 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
+        return;
+    }
+
+    // Calculate days between last update and today
+    const lastDate = new Date(lastAutoUpdate);
+    const currentDate = new Date(today);
+    const daysDiff = Math.floor((currentDate - lastDate) / (1000 * 60 * 60 * 24));
+
+    if (daysDiff > 0) {
+        console.log(`%c⚠️ Missed ${daysDiff} day(s) of auto-archiving!`, 'background: #f59e0b; color: white; padding: 5px; border-radius: 3px;');
+        console.log(`Last archive: ${lastAutoUpdate}, Today: ${today}`);
+
+        // Archive each missed day
+        for (let i = 0; i < daysDiff; i++) {
+            const missedDate = new Date(lastDate);
+            missedDate.setDate(missedDate.getDate() + i);
+            const missedDateStr = getLocalDateString(missedDate);
+
+            console.log(`%c📦 Auto-archiving missed day: ${missedDateStr}`, 'background: #6366f1; color: white; padding: 5px; border-radius: 3px;');
+            saveReport(missedDateStr, true);
+        }
+
+        // Update to today
+        localStorage.setItem('wifi_last_auto_update', today);
+        console.log('%c✅ Caught up with all missed archives', 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
+    }
+}
+
 
 // Background Cloud Sync - Pull latest data every 3 minutes if active
 setInterval(() => {
@@ -293,33 +358,239 @@ function logout() {
 
 /**
  * Password Recovery System
- * Since this is a local-first app, we use a recovery key pattern.
+ * Supports both Recovery Key and Email-based recovery
  */
 function handleForgotPassword() {
-    // Check if recovery key exists, if not generate one (one-time setup)
-    let recoveryKey = localStorage.getItem('wifi_recovery_key');
+    const recoveryKey = localStorage.getItem('wifi_recovery_key');
+    const recoveryEmail = localStorage.getItem('wifi_recovery_email');
 
-    if (!recoveryKey) {
-        // This usually happens if the user forgot before ever setting a key, 
-        // in which case they need to contact the developer or clear local storage.
-        alert("Password recovery is not set up on this device. Please contact support.");
-        return;
-    }
+    // Create a modal for recovery options
+    const modalHTML = `
+        <div id="recoveryModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+            <div class="glass-card" style="max-width: 500px; width: 90%; padding: 30px; border-radius: 16px;">
+                <h2 style="margin-bottom: 20px; color: var(--text-main);">🔐 Password Recovery</h2>
+                <p style="color: var(--text-muted); margin-bottom: 25px;">Choose a recovery method:</p>
+                
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    ${recoveryKey ? `
+                        <button onclick="recoverWithKey()" class="btn btn-primary" style="width: 100%; padding: 15px; background: var(--primary);">
+                            🔑 Use Recovery Key
+                        </button>
+                    ` : ''}
+                    
+                    ${recoveryEmail ? `
+                        <button onclick="recoverWithEmail()" class="btn btn-primary" style="width: 100%; padding: 15px; background: var(--info);">
+                            📧 Send Reset Link to Email
+                        </button>
+                    ` : `
+                        <div style="padding: 15px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid var(--danger);">
+                            <p style="color: var(--danger); margin: 0; font-size: 0.9rem;">
+                                ⚠️ No recovery email set. Please contact system administrator.
+                            </p>
+                        </div>
+                    `}
+                    
+                    <button onclick="closeRecoveryModal()" class="btn" style="width: 100%; padding: 15px; background: rgba(255,255,255,0.1);">
+                        Cancel
+                    </button>
+                </div>
+                
+                ${!recoveryKey && !recoveryEmail ? `
+                    <div style="margin-top: 20px; padding: 15px; background: rgba(99, 102, 241, 0.1); border-radius: 8px;">
+                        <p style="color: var(--text-muted); margin: 0; font-size: 0.85rem;">
+                            💡 <strong>Tip:</strong> Set up a recovery email in Settings to enable password recovery.
+                        </p>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
 
-    const inputKey = prompt("Please enter your System Recovery Key to reset your password:");
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeRecoveryModal() {
+    const modal = document.getElementById('recoveryModal');
+    if (modal) modal.remove();
+}
+
+function recoverWithKey() {
+    const recoveryKey = localStorage.getItem('wifi_recovery_key');
+    const inputKey = prompt("Please enter your System Recovery Key:");
 
     if (inputKey === recoveryKey) {
-        const newPass = prompt("Recovery Key Accepted. Enter new Admin password (min 4 characters):");
+        const newPass = prompt("Recovery Key Accepted! Enter new Admin password (min 4 characters):");
         if (newPass && newPass.length >= 4) {
             systemPassword = newPass;
             saveData();
-            alert("Password Reset Successful! You can now log in with your new password.");
+            closeRecoveryModal();
+            alert("✅ Password Reset Successful! You can now log in with your new password.");
         } else {
-            alert("Reset failed: Password too short.");
+            alert("❌ Reset failed: Password too short (minimum 4 characters).");
         }
     } else if (inputKey !== null) {
-        alert("Invalid Recovery Key.");
+        alert("❌ Invalid Recovery Key.");
     }
+}
+
+async function recoverWithEmail() {
+    const recoveryEmail = localStorage.getItem('wifi_recovery_email');
+
+    if (!recoveryEmail) {
+        alert("❌ No recovery email set. Please contact system administrator.");
+        return;
+    }
+
+    // Generate a temporary reset code
+    const resetCode = 'SAMA-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const resetExpiry = Date.now() + (15 * 60 * 1000); // 15 minutes
+
+    // Store reset code temporarily
+    sessionStorage.setItem('wifi_reset_code', resetCode);
+    sessionStorage.setItem('wifi_reset_expiry', resetExpiry);
+
+    closeRecoveryModal();
+    showNotification('Sending reset code to your email...', 'info');
+
+    try {
+        // Initialize EmailJS (you'll need to set up your own EmailJS account)
+        emailjs.init("YOUR_EMAILJS_PUBLIC_KEY"); // Replace with your EmailJS public key
+
+        // Send email with reset code
+        const templateParams = {
+            to_email: recoveryEmail,
+            to_name: 'Admin',
+            reset_code: resetCode,
+            app_name: 'Sama Wi-Fi Manager',
+            expiry_time: '15 minutes'
+        };
+
+        await emailjs.send(
+            'YOUR_SERVICE_ID',  // Replace with your EmailJS service ID
+            'YOUR_TEMPLATE_ID', // Replace with your EmailJS template ID
+            templateParams
+        );
+
+        showNotification('✅ Reset code sent to ' + recoveryEmail, 'success');
+
+        // Show code input modal
+        setTimeout(() => {
+            showResetCodeInput();
+        }, 1000);
+
+    } catch (error) {
+        console.error('Email send error:', error);
+        showNotification('❌ Failed to send email. Please try recovery key instead.', 'error');
+
+        // Fallback: Show the code directly (for testing/demo purposes)
+        if (confirm('Email service not configured. Show reset code directly? (Demo mode)')) {
+            alert(`Your reset code is: ${resetCode}\n\nThis code expires in 15 minutes.`);
+            showResetCodeInput();
+        }
+    }
+}
+
+function showResetCodeInput() {
+    const modalHTML = `
+        <div id="resetCodeModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+            <div class="glass-card" style="max-width: 500px; width: 90%; padding: 30px; border-radius: 16px;">
+                <h2 style="margin-bottom: 20px; color: var(--text-main);">📧 Enter Reset Code</h2>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">Check your email for the reset code (valid for 15 minutes):</p>
+                
+                <div style="margin-bottom: 20px;">
+                    <input type="text" id="resetCodeInput" placeholder="Enter reset code" 
+                        style="width: 100%; padding: 12px; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-family: monospace;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <input type="password" id="newPasswordInput" placeholder="Enter new password (min 4 characters)" 
+                        style="width: 100%; padding: 12px; font-size: 1rem;">
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="verifyResetCode()" class="btn btn-primary" style="flex: 1; padding: 12px; background: var(--accent);">
+                        Reset Password
+                    </button>
+                    <button onclick="closeResetCodeModal()" class="btn" style="padding: 12px; background: rgba(255,255,255,0.1);">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.getElementById('resetCodeInput').focus();
+}
+
+function closeResetCodeModal() {
+    const modal = document.getElementById('resetCodeModal');
+    if (modal) modal.remove();
+}
+
+function verifyResetCode() {
+    const inputCode = document.getElementById('resetCodeInput').value.trim().toUpperCase();
+    const newPassword = document.getElementById('newPasswordInput').value.trim();
+    const storedCode = sessionStorage.getItem('wifi_reset_code');
+    const expiry = parseInt(sessionStorage.getItem('wifi_reset_expiry'));
+
+    if (!inputCode || !newPassword) {
+        showNotification('Please enter both reset code and new password', 'error');
+        return;
+    }
+
+    if (newPassword.length < 4) {
+        showNotification('Password must be at least 4 characters', 'error');
+        return;
+    }
+
+    if (Date.now() > expiry) {
+        showNotification('Reset code has expired. Please request a new one.', 'error');
+        sessionStorage.removeItem('wifi_reset_code');
+        sessionStorage.removeItem('wifi_reset_expiry');
+        closeResetCodeModal();
+        return;
+    }
+
+    if (inputCode === storedCode) {
+        systemPassword = newPassword;
+        saveData();
+
+        // Clear reset code
+        sessionStorage.removeItem('wifi_reset_code');
+        sessionStorage.removeItem('wifi_reset_expiry');
+
+        closeResetCodeModal();
+        showNotification('✅ Password reset successful! You can now log in.', 'success');
+
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+    } else {
+        showNotification('❌ Invalid reset code. Please check your email.', 'error');
+    }
+}
+
+function saveRecoveryEmail() {
+    const emailInput = document.getElementById('recoveryEmailInput');
+    const email = emailInput.value.trim();
+
+    if (!email) {
+        showNotification('Please enter an email address', 'error');
+        return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        showNotification('Please enter a valid email address', 'error');
+        return;
+    }
+
+    localStorage.setItem('wifi_recovery_email', email);
+    showNotification('✅ Recovery email saved successfully!', 'success');
+
+    console.log(`%c📧 Recovery Email Set: ${email}`, 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
 }
 
 // Ensure every device has a unique recovery key for safety
@@ -1287,7 +1558,8 @@ function saveReport(targetDate = getLocalDateString(), isAuto = false) {
     saveData();
 
     if (isAuto) {
-        console.log(`System: Automated archive completed for ${dateToSave}`);
+        console.log(`%c✅ Auto-Archive: ${dateToSave}`, 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
+        console.log(`   📊 ${report.summary.totalClients} transactions | 💰 Revenue: ${report.summary.revenue.toLocaleString()} SSP | 💸 Expenses: ${report.summary.expenses.toLocaleString()} SSP | 📈 Profit: ${report.summary.netProfit.toLocaleString()} SSP`);
     } else {
         showNotification(`Report for ${dateToSave} archived successfully`);
     }
