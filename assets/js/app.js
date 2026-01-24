@@ -595,17 +595,19 @@ function renderVoucherHistory() {
     const list = document.getElementById('voucherHistory');
     if (!list) return;
 
-    if (vouchers.length === 0) {
-        list.innerHTML = `<div class="text-center p-8 text-muted">No voucher sales recorded yet.</div>`;
+    const today = getLocalDateString();
+
+    // Show only vouchers from today, sorted by newest first
+    const recentVouchers = vouchers
+        .filter(v => getLocalDateString(v.date) === today)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (recentVouchers.length === 0) {
+        list.innerHTML = `<div class="text-center p-8 text-muted">No voucher sales today.</div>`;
         return;
     }
 
     list.innerHTML = '';
-
-    // Show last 20 voucher sales
-    const recentVouchers = [...vouchers]
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
-        .slice(0, 20);
 
     recentVouchers.forEach(item => {
         const div = document.createElement('div');
@@ -936,8 +938,11 @@ function loadHistory() {
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <div class="badge badge-paid">PROFIT: ${report.summary.netProfit.toLocaleString()} SSP</div>
-                    <button onclick="printSingleReport('${report.date}')" class="btn" style="padding: 6px 12px; background: var(--info); color: white; border-radius: 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 5px;">
-                        🖨️ Print
+                    <button onclick="printSingleReport('${report.date}')" class="btn" style="padding: 6px 12px; background: var(--info); color: white; border-radius: 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 5px;" title="Print Report">
+                        <i data-lucide="printer" style="width: 14px"></i> Print
+                    </button>
+                    <button onclick="deleteReport('${report.date}')" class="btn" style="padding: 6px 12px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 5px;" title="Delete Archive">
+                        <i data-lucide="trash-2" style="width: 14px"></i>
                     </button>
                 </div>
             </div>
@@ -1090,7 +1095,7 @@ function printTicket(id, type) {
             <!-- Header -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
                 <div style="display: flex; align-items: center; gap: 20px;">
-                    <img src="assets/img/Sam Logo.png" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
+                    <img src="assets/img/sama-logo.png" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
                     <div>
                         <h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">SAMA WI-FI</h1>
                         <p style="margin: 0; color: #6366f1; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Premium Access Token</p>
@@ -1226,6 +1231,18 @@ function executePrint(title, customHTML = null) {
     `);
 
     printWindow.document.close();
+}
+
+function deleteReport(dateStr) {
+    if (!confirm(`Are you sure you want to permanently delete the archive for ${dateStr}?`)) return;
+
+    dailyReports = dailyReports.filter(r => r.date !== dateStr);
+    saveData();
+
+    // Refresh history view if we are on the history tab
+    if (currentTab === 'history') loadHistory();
+
+    showNotification('Report deleted successfully');
 }
 
 function saveReport(targetDate = getLocalDateString(), isAuto = false) {

@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sama Wi-Fi | Premium Client Manager</title>
 
+    <!-- App Icons & Manifest -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/sama-logo.png?v=5">
+    <link rel="apple-touch-icon" href="/sama-logo.png?v=5">
+    <link rel="manifest" href="manifest.json?v=2">
+
     <!-- Premium Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,25 +26,10 @@
 
     <!-- Firebase Configuration -->
     <script src="assets/js/db-manager.js"></script>
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        // Share firestore functions with db-manager.js
-        window.firebaseFirestore = { doc, setDoc, getDoc };
-
-        // Initialize Firebase using config from db-manager.js
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // Connect to our internal manager
-        if (typeof initFirebase === 'function') {
-            initFirebase(app, db);
-        }
-    </script>
+    <script type="module" src="assets/js/firebase-init.js"></script>
 
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="assets/css/modern-ui.css">
+    <link rel="stylesheet" href="assets/css/modern-ui.css?v=2.1">
 
     <style>
         .hidden {
@@ -65,7 +56,7 @@
     <div id="loginPage" class="login-screen">
         <div class="glass-card login-card">
             <div class="login-logo-container">
-                <img src="assets/img/Sam%20Logo.png" alt="Sama Wi-Fi Logo" class="login-logo">
+                <img src="./assets/img/sama-logo.png?v=3" alt="Sama Wi-Fi Logo" class="login-logo">
             </div>
             <div class="login-header">
                 <span class="text-gradient h1-style">Sama Wi-Fi</span>
@@ -107,7 +98,7 @@
         <!-- Premium Header -->
         <header class="main-header">
             <div style="display: flex; align-items: center; gap: 16px;">
-                <img src="assets/img/Sam%20Logo.png" alt="Logo"
+                <img src="./assets/img/sama-logo.png?v=3" alt="Logo"
                     style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 1px solid var(--glass-border); filter: drop-shadow(0 0 8px var(--primary-glow))">
                 <div>
                     <h1 class="text-gradient" style="font-size: 1.8rem; line-height: 1">Sama Wi-Fi</h1>
@@ -575,7 +566,7 @@
                 style="display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
                 <div
                     style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid #6366f1; padding: 5px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; background: #f8fafc;">
-                    <img src="assets/img/Sam%20Logo.png" alt="Logo"
+                    <img src="./assets/img/sama-logo.png?v=3" alt="Logo"
                         style="height: 80px; width: 80px; object-fit: contain; border-radius: 50%;">
                 </div>
                 <div>
@@ -618,12 +609,7 @@
 
     <!-- Core Scripts -->
     <script src="assets/js/app.js"></script>
-    <script>
-        // Init Lucide Icons safely after DOM load
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.lucide) lucide.createIcons();
-        });
-    </script>
+    <script src="assets/js/ui-init.js"></script>
 </body>
 
 </html>
