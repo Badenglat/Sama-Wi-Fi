@@ -24,11 +24,9 @@ let businessChart = null;
 // 🌍 Timezone Management (Juba, South Sudan: UTC+2)
 // Since the browser clock may be out of sync, we use a centralized date getter
 const getJubaDate = () => {
-    // HARD FIX: The local device clock is currently reporting Jan 21, 
-    // but the user's business time (Juba) is already Jan 22.
-    // We add a 4-hour offset (14400000 ms) to correctly transition into Jan 22.
-    const now = new Date();
-    return new Date(now.getTime() + 14400000);
+    // Use Intl API to properly get the time in Juba, South Sudan (CAT)
+    // This creates a Date object where the "local" time components match Juba time
+    return new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Juba" }));
 };
 
 const getLocalDateString = (date = getJubaDate()) => {
