@@ -144,7 +144,37 @@ function initializeAppUI() {
 
     // 8. Final UI Render
     updateDisplay();
+
+    // 9. Start Live Clock
+    startLiveClock();
 }
+
+function startLiveClock() {
+    const update = () => {
+        const now = getJubaDate();
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+
+        // Format time with AM/PM
+        let hours = now.getHours();
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // the hour '0' should be '12'
+
+        const timeStr = `${hours}:${minutes}:${seconds} ${ampm}`;
+        const dateStr = now.toLocaleDateString('en-US', dateOptions);
+
+        const dateEl = document.getElementById('currentDate');
+        if (dateEl) {
+            dateEl.textContent = `${dateStr} • ${timeStr}`;
+        }
+    };
+
+    update(); // Initial call
+    setInterval(update, 1000); // Recurring call
+}
+
 
 // Separate function for periodic background sync (Rollover)
 function checkDateRollover() {
@@ -718,8 +748,8 @@ function startQRScanner() {
         html5QrCode = new Html5Qrcode("qr-reader");
     }
 
-    // config: Use high FPS for faster scanning and larger box for easier targeting
-    const config = { fps: 30, qrbox: { width: 280, height: 280 } };
+    // config: Balanced High Speed - 25 FPS is safer for mobile devices
+    const config = { fps: 25, qrbox: { width: 250, height: 250 } };
 
     // Prefer back camera
     html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
@@ -745,24 +775,44 @@ function stopQRScanner() {
 function onScanSuccess(decodedText, decodedResult) {
     console.log(`Scan result: ${decodedText}`);
 
+    // 1. Immediate Feedback
+    if (navigator.vibrate) navigator.vibrate(200); // Vibrate for 200ms
+    const beep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbqWEzMzft9/hvb25v1+3t3Z18fH7R6+vZkXl5fNPr69uReXl80+vr2ZF5eXzT6+vbkXl5fNPr69uReXl80+vr2ZF5eXzT6+vbkXl5fNPr69uReXl80+vr2ZF5eXw==');
+    beep.play().catch(e => { }); // Play beep if allowed
+
     // Stop scanning on success
     stopQRScanner();
+
+    // 2. Show Raw Data (User Request: "Show all details")
+    const scannerSection = document.getElementById('scannerSection');
+    let rawDisplay = document.getElementById('scanRawDataDisplay');
+
+    if (!rawDisplay) {
+        rawDisplay = document.createElement('div');
+        rawDisplay.id = 'scanRawDataDisplay';
+        rawDisplay.style.cssText = 'margin-top: 15px; padding: 15px; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent); border-radius: 8px; color: var(--text-main); font-family: monospace; font-size: 0.9rem; word-break: break-all;';
+        scannerSection.appendChild(rawDisplay);
+    }
+
+    rawDisplay.innerHTML = `<strong>✅ Scanned Successfully:</strong><br>${decodedText}`;
+    rawDisplay.classList.remove('hidden');
 
     // Auto-Fill Form
     const usernameInput = document.getElementById('voucherUsername');
     const passwordInput = document.getElementById('voucherPassword');
     const typeSelect = document.getElementById('sellVoucherType');
-    const amountInput = document.getElementById('voucherAmount');
 
     // 1. Priority Pattern: Username(abc) Password(123) - Check this FIRST for speed
     let user = "";
     let pass = "";
 
+    // Optimized Regex for "Username(val)" format
     const fastUserMatch = decodedText.match(/Username\s*\(([^)]+)\)/i);
     const fastPassMatch = decodedText.match(/Password\s*\(([^)]+)\)/i);
 
-    if (fastUserMatch) user = fastUserMatch[1];
-    if (fastPassMatch) pass = fastPassMatch[1];
+    // .trim() removes any accidental spaces inside the parentheses
+    if (fastUserMatch) user = fastUserMatch[1].trim();
+    if (fastPassMatch) pass = fastPassMatch[1].trim();
 
     // 2. Fallback: URL Parameters
     if (!user || !pass) {
@@ -775,7 +825,7 @@ function onScanSuccess(decodedText, decodedResult) {
         } catch (e) { }
     }
 
-    // 2. Regex fallback for raw text (e.g. "Username: abc" or "Username(abc)")
+    // 3. Regex fallback for raw text (e.g. "Username: abc" or "Username(abc)")
     if (!user) {
         // Try standard format "Username: abc"
         let userMatch = decodedText.match(/(?:username|user|u)[:=]\s*([a-zA-Z0-9]+)/i);
@@ -793,7 +843,7 @@ function onScanSuccess(decodedText, decodedResult) {
         if (passMatch) pass = passMatch[1];
     }
 
-    // 3. Last resort: simple space/comma separation if it looks like credential pair
+    // 4. Last resort: simple space/comma separation if it looks like credential pair
     if (!user && !pass && !decodedText.includes('http')) {
         const parts = decodedText.split(/[\s,]+/);
         if (parts.length >= 2) {
@@ -815,7 +865,7 @@ function onScanSuccess(decodedText, decodedResult) {
     if (user || pass) {
         showNotification("Credentials Scanned! ✅");
 
-        // 4. Try to infer type/price from text (e.g. "1,000 SSP", "1Hours")
+        // 5. Try to infer type/price from text (e.g. "1,000 SSP", "1Hours")
         const lowerText = decodedText.toLowerCase();
         let inferredType = "";
 
@@ -830,15 +880,12 @@ function onScanSuccess(decodedText, decodedResult) {
             // Trigger change event to set price
             typeSelect.dispatchEvent(new Event('change'));
             showNotification(`Detected Voucher Type: ${inferredType}`, 'success');
-        } else {
-            showNotification("Please select the Voucher Type manually.");
-            typeSelect.focus();
         }
 
     } else {
-        showNotification("Could not find username/password in scanned code.", "error");
+        showNotification("Raw Text Captured (Manual Verification Required)", "info");
         // Fill the raw text into username as fallback so they can copy-paste if needed
-        usernameInput.value = decodedText;
+        if (decodedText.length < 50) usernameInput.value = decodedText;
     }
 }
 
