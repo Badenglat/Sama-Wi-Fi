@@ -19,6 +19,7 @@ let systemUsername = "admin";
 let systemPassword = "1234";
 let currentTab = 'clients';
 let businessChart = null;
+let html5QrCode = null;
 
 // Helpers
 // 🌍 Timezone Management (Juba, South Sudan: UTC+2)
@@ -708,12 +709,147 @@ function addExpense(event) {
     showNotification('Expense recorded');
 }
 
+// QR Scanner Logic
+function startQRScanner() {
+    const section = document.getElementById('scannerSection');
+    section.classList.remove('hidden');
+
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader");
+    }
+
+    // config: Use high FPS for faster scanning and larger box for easier targeting
+    const config = { fps: 30, qrbox: { width: 280, height: 280 } };
+
+    // Prefer back camera
+    html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+            console.error("Error starting scanner", err);
+            showNotification("Camera access denied or error: " + err, 'error');
+            section.classList.add('hidden');
+        });
+}
+
+function stopQRScanner() {
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+            document.getElementById('scannerSection').classList.add('hidden');
+        }).catch(err => {
+            console.error("Failed to stop scanner", err);
+        });
+    } else {
+        document.getElementById('scannerSection').classList.add('hidden');
+    }
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+    console.log(`Scan result: ${decodedText}`);
+
+    // Stop scanning on success
+    stopQRScanner();
+
+    // Auto-Fill Form
+    const usernameInput = document.getElementById('voucherUsername');
+    const passwordInput = document.getElementById('voucherPassword');
+    const typeSelect = document.getElementById('sellVoucherType');
+    const amountInput = document.getElementById('voucherAmount');
+
+    // 1. Priority Pattern: Username(abc) Password(123) - Check this FIRST for speed
+    let user = "";
+    let pass = "";
+
+    const fastUserMatch = decodedText.match(/Username\s*\(([^)]+)\)/i);
+    const fastPassMatch = decodedText.match(/Password\s*\(([^)]+)\)/i);
+
+    if (fastUserMatch) user = fastUserMatch[1];
+    if (fastPassMatch) pass = fastPassMatch[1];
+
+    // 2. Fallback: URL Parameters
+    if (!user || !pass) {
+        try {
+            // Create a dummy url if it's just parameters or strict text
+            const urlStr = decodedText.startsWith('http') ? decodedText : 'http://dummy.com?' + decodedText;
+            const url = new URL(urlStr);
+            if (!user) user = url.searchParams.get("username") || url.searchParams.get("user");
+            if (!pass) pass = url.searchParams.get("password") || url.searchParams.get("password") || url.searchParams.get("pw");
+        } catch (e) { }
+    }
+
+    // 2. Regex fallback for raw text (e.g. "Username: abc" or "Username(abc)")
+    if (!user) {
+        // Try standard format "Username: abc"
+        let userMatch = decodedText.match(/(?:username|user|u)[:=]\s*([a-zA-Z0-9]+)/i);
+        // Try parentheses format "Username(abc)" as seen in some vouchers
+        if (!userMatch) userMatch = decodedText.match(/Username\s*\(([^)]+)\)/i);
+
+        if (userMatch) user = userMatch[1];
+    }
+    if (!pass) {
+        // Try standard format "Password: 123"
+        let passMatch = decodedText.match(/(?:password|pass|p|pwd)[:=]\s*([a-zA-Z0-9]+)/i);
+        // Try parentheses format "Password(123)"
+        if (!passMatch) passMatch = decodedText.match(/Password\s*\(([^)]+)\)/i);
+
+        if (passMatch) pass = passMatch[1];
+    }
+
+    // 3. Last resort: simple space/comma separation if it looks like credential pair
+    if (!user && !pass && !decodedText.includes('http')) {
+        const parts = decodedText.split(/[\s,]+/);
+        if (parts.length >= 2) {
+            // Assume format: USERNAME PASSWORD
+            user = parts[0];
+            pass = parts[1];
+        }
+    }
+
+    if (user) {
+        usernameInput.value = user;
+        usernameInput.style.backgroundColor = "rgba(16, 185, 129, 0.1)";
+    }
+    if (pass) {
+        passwordInput.value = pass;
+        passwordInput.style.backgroundColor = "rgba(16, 185, 129, 0.1)";
+    }
+
+    if (user || pass) {
+        showNotification("Credentials Scanned! ✅");
+
+        // 4. Try to infer type/price from text (e.g. "1,000 SSP", "1Hours")
+        const lowerText = decodedText.toLowerCase();
+        let inferredType = "";
+
+        if (lowerText.includes("1,000") || lowerText.includes("1000") || lowerText.includes("1 hour") || lowerText.includes("1hour")) inferredType = "1hr";
+        else if (lowerText.includes("1,500") || lowerText.includes("1500") || lowerText.includes("2 hour") || lowerText.includes("2hour")) inferredType = "2hr";
+        else if (lowerText.includes("2,000") || lowerText.includes("2000") || lowerText.includes("day") || lowerText.includes("24 hour")) inferredType = "day";
+        else if (lowerText.includes("14,000") || lowerText.includes("14000") || lowerText.includes("week")) inferredType = "week";
+        else if (lowerText.includes("60,000") || lowerText.includes("60000") || lowerText.includes("month")) inferredType = "month";
+
+        if (inferredType) {
+            typeSelect.value = inferredType;
+            // Trigger change event to set price
+            typeSelect.dispatchEvent(new Event('change'));
+            showNotification(`Detected Voucher Type: ${inferredType}`, 'success');
+        } else {
+            showNotification("Please select the Voucher Type manually.");
+            typeSelect.focus();
+        }
+
+    } else {
+        showNotification("Could not find username/password in scanned code.", "error");
+        // Fill the raw text into username as fallback so they can copy-paste if needed
+        usernameInput.value = decodedText;
+    }
+}
+
 // UI Updates
 function updateDisplay() {
     updateStats();
     renderTransactions();
     renderVoucherHistory();
+    renderExpenseHistory();
     updateStockDisplay();
+    updateClientDatalist();
     if (currentTab === 'history') loadHistory();
 }
 
@@ -806,7 +942,16 @@ function renderTransactions() {
         try { dateStr = new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) { }
 
         let title = item.name || 'Anonymous';
-        if (isExpense) title = item.category || 'Expense';
+        if (isExpense) {
+            const expLabels = {
+                "lunch": "Food", "tea": "Tea", "maintenance": "Maintenance",
+                "transport": "Transport", "salary": "Salary", "other": "Other"
+            };
+            const catLabel = expLabels[item.category] || item.category || 'Expense';
+            // Capitalize first letter just in case
+            title = catLabel.charAt(0).toUpperCase() + catLabel.slice(1);
+            if (item.personName) title += ` (${item.personName})`;
+        }
         if (isVoucher) {
             const labels = {
                 "1hr": "1 Hour", "2hr": "2 Hour", "day": "Full Day", "week": "Weekly", "month": "Monthly"
@@ -830,6 +975,7 @@ function renderTransactions() {
                         ${isVoucher ? ' • Client: ' + (item.clientName || 'Cash') : ''}
                         ${item.phoneType ? ' • 📱 ' + item.phoneType : ''} 
                         ${item.notes ? ' • 📝 ' + item.notes : ''}
+                        ${isExpense && item.reason ? ' • 📝 ' + item.reason : ''}
                         ${isVoucher ? ' • Pwd: ' + (item.password || 'none') : ''}
                     </div>
                 </div>
@@ -927,13 +1073,80 @@ function renderVoucherHistory() {
     lucide.createIcons();
 }
 
+function renderExpenseHistory() {
+    const list = document.getElementById('expenseHistory');
+    if (!list) return;
+
+    const today = getLocalDateString();
+
+    // Show only expenses from today, sorted by newest first
+    const recentExpenses = expenses
+        .filter(e => getLocalDateString(e.date) === today)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (recentExpenses.length === 0) {
+        list.innerHTML = `<div class="text-center p-8 text-muted">No expenses recorded today.</div>`;
+        return;
+    }
+
+    list.innerHTML = '';
+
+    recentExpenses.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `list-item glass-card expense`;
+
+        let dateStr = "Unknown";
+        try {
+            const d = new Date(item.date);
+            dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+                d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) { }
+
+        const expLabels = {
+            "lunch": "Food", "tea": "Tea", "maintenance": "Maintenance",
+            "transport": "Transport", "salary": "Salary", "other": "Other"
+        };
+        const catLabel = expLabels[item.category] || item.category || 'Expense';
+        const displayTitle = catLabel.charAt(0).toUpperCase() + catLabel.slice(1);
+
+        div.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
+                <div style="font-size: 1.5rem; background: rgba(239, 68, 68, 0.1); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid var(--glass-border); color: var(--danger);">
+                    💸
+                </div>
+                <div class="item-main">
+                    <div class="item-title" style="text-transform: capitalize;">${displayTitle} (${item.personName || '?'})</div>
+                    <div class="item-meta" style="font-size: 0.8rem; color: var(--text-muted);">
+                        <span style="color: var(--text-main); font-weight: 500">${dateStr}</span> • ${item.reason || 'No description'}
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: right; margin-left: 20px;">
+                <div style="font-family: 'Outfit'; font-weight: 800; font-size: 1.2rem; color: var(--danger)">
+                    -${(item.amount || 0).toLocaleString()} SSP
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px;">
+                    <button type="button" onclick="editItem('${item.id}', 'expense')" class="btn" style="padding: 6px; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 8px;" title="Edit">
+                        <i data-lucide="edit-3" style="width: 14px"></i>
+                    </button>
+                    <button type="button" onclick="deleteItem('${item.id}', 'expense')" class="btn" style="padding: 6px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px;" title="Delete">
+                        <i data-lucide="trash-2" style="width: 14px"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+
+    lucide.createIcons();
+}
+
 function deleteItem(id, type) {
     if (!confirm('Are you sure you want to delete this record?')) return;
 
     // Convert to string for safe comparison
     const targetId = String(id);
 
-    // More robust removal: Check all arrays if type is missing or to ensure cross-type safety
     if (type === 'client' || !type) {
         clients = clients.filter(c => String(c.id) !== targetId);
     }
@@ -947,6 +1160,70 @@ function deleteItem(id, type) {
     saveData();
     updateDisplay();
     showNotification('Item successfully removed');
+}
+
+// Auto-Fill Logic
+function updateClientDatalist() {
+    const dataList = document.getElementById('savedClients');
+    if (!dataList) return;
+
+    // Get unique names, case insensitive
+    const uniqueNames = new Set();
+    const options = [];
+
+    // Prioritize recent clients
+    clients.forEach(c => {
+        const lower = c.name.toLowerCase();
+        if (!uniqueNames.has(lower)) {
+            uniqueNames.add(lower);
+            options.push(c.name);
+        }
+    });
+
+    dataList.innerHTML = options.map(name => `<option value="${name}">`).join('');
+}
+
+function autoFillClientDetails(nameInput) {
+    if (!nameInput) return;
+
+    // Find the most recent record for this client
+    const client = clients.find(c => c.name.toLowerCase() === nameInput.toLowerCase());
+
+    if (client) {
+        const phoneInput = document.getElementById('phoneType');
+        const durationSelect = document.getElementById('duration');
+        const amountInput = document.getElementById('amount');
+
+        // Flash effect to show recognized
+        document.getElementById('clientName').style.borderColor = 'var(--accent)';
+        setTimeout(() => document.getElementById('clientName').style.borderColor = '', 500);
+
+        if (phoneInput) {
+            phoneInput.value = client.phoneType || '';
+            // Visual cue
+            phoneInput.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+            setTimeout(() => phoneInput.style.backgroundColor = '', 1000);
+        }
+
+        if (durationSelect && client.duration) {
+            durationSelect.value = client.duration;
+            // Trigger the logic that sets amount automatically
+            const clientPrices = { '1hr': 1000, '2hr': 1500, 'day': 2000, 'week': 14000, 'month': 60000 };
+
+            // If custom duration or not found in standard prices, use the saved amount
+            if (client.duration === 'custom' || !clientPrices[client.duration]) {
+                amountInput.value = client.amount;
+                amountInput.readOnly = false;
+            } else {
+                amountInput.value = clientPrices[client.duration];
+                amountInput.readOnly = true;
+            }
+
+            // Visual cue
+            durationSelect.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+            setTimeout(() => durationSelect.style.backgroundColor = '', 1000);
+        }
+    }
 }
 
 // Edit Functionality

@@ -46,6 +46,9 @@
     <!-- EmailJS for Password Recovery -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
+    <!-- QR Code Scanner -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
     <!-- Firebase Configuration -->
     <script src="assets/js/db-manager.js"></script>
     <script type="module" src="assets/js/firebase-init.js"></script>
@@ -215,7 +218,9 @@
                     <form onsubmit="addClient(event)">
                         <div class="form-group">
                             <label for="clientName">Client Name</label>
-                            <input type="text" id="clientName" name="clientName" placeholder="Full Name" required>
+                            <input type="text" id="clientName" name="clientName" placeholder="Full Name" required
+                                list="savedClients" oninput="autoFillClientDetails(this.value)" autocomplete="off">
+                            <datalist id="savedClients"></datalist>
                         </div>
                         <div class="form-group">
                             <label for="phoneType">Phone Type</label>
@@ -286,6 +291,27 @@
             <div class="tab-grid">
                 <div class="glass-card">
                     <h2 class="mb-4">Sell New Voucher</h2>
+
+                    <!-- QR Scanner Button & Section (Moved to Top) -->
+                    <button type="button" onclick="startQRScanner()" class="btn btn-primary"
+                        style="width: 100%; margin-bottom: 16px; background: var(--accent); color: #020617; border: none; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 15px var(--accent-glow);">
+                        <i data-lucide="camera" style="width: 20px;"></i> Scan Voucher QR
+                    </button>
+
+                    <div id="scannerSection" class="glass-card mb-4 hidden"
+                        style="border-color: var(--accent); background: rgba(0,0,0,0.3);">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0; color: var(--accent);">📷 Scanning...</h3>
+                            <button type="button" onclick="stopQRScanner()" class="btn-close"
+                                style="color: white; font-size: 1.5rem;">×</button>
+                        </div>
+                        <div id="qr-reader"
+                            style="width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid var(--accent);">
+                        </div>
+                        <p class="text-muted" style="font-size: 0.8rem; margin-top: 10px; text-align: center;">Point
+                            camera at the voucher QR code</p>
+                    </div>
 
                     <div class="stats-grid"
                         style="grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 24px">
@@ -367,15 +393,15 @@
 
         <!-- Expenses Tab -->
         <div id="expensesTab" class="tab-content hidden">
-            <div style="max-width: 600px; margin: 0 auto;">
+            <div class="tab-grid">
                 <div class="glass-card">
                     <h2 class="mb-4">Record New Expense</h2>
                     <form onsubmit="addExpense(event)">
                         <div class="form-group">
                             <label for="expenseCategory">Expense Category</label>
                             <select id="expenseCategory" name="expenseCategory">
-                                <option value="lunch">🍽️ Lunch / Food</option>
-                                <option value="tea">☕ Tea / Drinks</option>
+                                <option value="lunch">🍽️ Food</option>
+                                <option value="tea">☕ Tea</option>
                                 <option value="maintenance">🔧 Maintenance</option>
                                 <option value="transport">🚗 Transport</option>
                                 <option value="salary">💰 Salary / Advance</option>
@@ -398,6 +424,13 @@
                         <button type="submit" class="btn btn-primary"
                             style="width: 100%; background: var(--danger)">Record Expense</button>
                     </form>
+                </div>
+
+                <div class="glass-card">
+                    <h2 class="mb-4">Recent Expenses</h2>
+                    <div id="expenseHistory" class="transaction-list">
+                        <p class="text-muted text-center p-8">Recent expenses will appear here.</p>
+                    </div>
                 </div>
             </div>
         </div>
