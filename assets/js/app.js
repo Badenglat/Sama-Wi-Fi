@@ -1924,7 +1924,7 @@ function printTicket(id, type) {
             <!-- Header -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
                 <div style="display: flex; align-items: center; gap: 20px;">
-                    <img src="/sama-logo.png?v=3.5" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
+                    <img src="sama-logo.png?v=3.5" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
                     <div>
                         <h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">SAMA WI-FI</h1>
                         <p style="margin: 0; color: #6366f1; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Premium Access Token</p>
