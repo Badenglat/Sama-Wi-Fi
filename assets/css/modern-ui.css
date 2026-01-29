@@ -28,16 +28,21 @@
     --transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
+@keyframes shimmer {
+    0% {
+        background-position: -468px 0;
     }
 
-    to {
-        opacity: 1;
-        transform: translateY(0);
+    100% {
+        background-position: 468px 0;
     }
+}
+
+.skeleton {
+    background: linear-gradient(to right, rgba(255, 255, 255, 0.05) 8%, rgba(255, 255, 255, 0.1) 18%, rgba(255, 255, 255, 0.05) 33%);
+    background-size: 800px 104px;
+    animation: shimmer 1.5s linear infinite forwards;
+    border-radius: 8px;
 }
 
 @keyframes pulse-subtle {
@@ -52,6 +57,29 @@
     100% {
         box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
     }
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
+.glow-point {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse-glow 2s infinite;
 }
 
 * {
@@ -333,16 +361,17 @@ input:-webkit-autofill:active {
 }
 
 .login-card {
-    width: 90%;
-    max-width: 440px;
-    padding: 50px 40px;
+    width: 95%;
+    max-width: 450px;
+    padding: 60px 45px;
     position: relative;
     z-index: 10;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    -webkit-backdrop-filter: blur(30px) saturate(200%);
-    backdrop-filter: blur(30px) saturate(200%);
+    box-shadow: 0 40px 100px -12px rgba(0, 0, 0, 0.7);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    backdrop-filter: blur(40px) saturate(200%);
     text-align: center;
+    border-radius: 30px;
 }
 
 .login-logo-container {
@@ -472,12 +501,28 @@ input:-webkit-autofill:active {
 .stat-item {
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 120px;
+}
+
+.stat-sparkline {
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    pointer-events: none;
+    opacity: 0.6;
 }
 
 .stat-value {
     font-size: 2.2rem;
     font-weight: 800;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+    position: relative;
+    z-index: 2;
 }
 
 .stat-card-accent {
@@ -720,14 +765,187 @@ input:-webkit-autofill:active {
     background: rgba(255, 255, 255, 0.2);
 }
 
-.search-input {
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    width: 150px !important;
+/* Search Highlighting */
+mark.highlight {
+    background: var(--primary);
+    color: white;
+    padding: 0 2px;
+    border-radius: 4px;
+    box-shadow: 0 0 10px var(--primary-glow);
 }
 
-.date-input {
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    width: auto !important;
+/* Animations Hub */
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+.blink {
+    animation: blink 1s infinite;
+}
+
+/* Ultra-Premium Header Widgets - The "Amazing" Version */
+.amazing-clock-container {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    padding: 12px 30px;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(30px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    position: relative;
+    box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.5),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    transition: var(--transition);
+    overflow: hidden;
+}
+
+.amazing-clock-container:hover {
+    transform: translateY(-3px) scale(1.01);
+    border-color: var(--primary);
+    box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.6),
+        0 0 20px var(--primary-glow);
+}
+
+.amazing-clock-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transform: skewX(-25deg);
+    transition: 0.8s;
+}
+
+.amazing-clock-container:hover::after {
+    left: 150%;
+}
+
+.clock-time-big {
+    font-size: 2.8rem;
+    font-weight: 800;
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: -2px;
+    line-height: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+}
+
+.clock-time-big .ampm {
+    font-size: 1rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.clock-separator {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.clock-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.clock-greeting {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.clock-date {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    opacity: 0.95;
+    white-space: nowrap;
+}
+
+.clock-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-top: 4px;
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--accent);
+    animation: live-pulse-anim 2s infinite;
+}
+
+@keyframes live-pulse-anim {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.5);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-slide-in {
+    animation: slideInRight 0.5s ease-out forwards;
 }

@@ -19,7 +19,10 @@ let systemUsername = "admin";
 let systemPassword = "1234";
 let currentTab = 'clients';
 let businessChart = null;
+let voucherMixChart = null;
 let html5QrCode = null;
+let lastAction = null; // For Undo functionality
+let undoTimeout = null;
 
 // Helpers
 // 🌍 Timezone Management (Juba, South Sudan: UTC+2)
@@ -97,15 +100,49 @@ function saveData() {
 }
 
 function initializeAppUI() {
-    // 1. First, set the header date text
-    const now = getJubaDate();
-    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    // 1. Digital Clock Implementation
     const dateEl = document.getElementById('currentDate');
-    if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', dateOptions);
+    const updateHeaderTime = () => {
+        const now = getJubaDate();
+        const dateOptions = { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' };
+        const dateStr = now.toLocaleDateString('en-US', dateOptions);
+
+        const rawHrs = now.getHours();
+        const ampm = rawHrs >= 12 ? 'PM' : 'AM';
+        const displayHrs = rawHrs % 12 || 12;
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const secs = String(now.getSeconds()).padStart(2, '0');
+
+        if (dateEl) {
+            let greeting = 'Good Evening';
+            if (rawHrs < 12) greeting = 'Good Morning';
+            else if (rawHrs < 18) greeting = 'Good Afternoon';
+
+            dateEl.innerHTML = `
+                <div class="amazing-clock-container">
+                    <div class="clock-time-big">
+                        ${displayHrs}<span class="blink" style="color: var(--primary);">:</span>${mins}
+                        <span class="ampm">${ampm}</span>
+                    </div>
+                    <div class="clock-separator"></div>
+                    <div class="clock-details">
+                        <span class="clock-greeting">${greeting}, ${employeeName}</span>
+                        <span class="clock-date">${dateStr}</span>
+                        <div class="clock-status">
+                            <div class="status-dot"></div>
+                            SYSTEM SECURE • LIVE
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    };
+    updateHeaderTime();
+    setInterval(updateHeaderTime, 1000);
 
     // 2. Force the filter to TODAY on startup
     const filterEl = document.getElementById('filterDate');
-    const todayStr = getLocalDateString(now);
+    const todayStr = getLocalDateString();
     if (filterEl) {
         filterEl.value = todayStr;
         filterEl.dataset.lastAutoUpdate = todayStr;
@@ -130,11 +167,6 @@ function initializeAppUI() {
         cloudBtn.style.background = isEnabled ? 'var(--accent)' : 'var(--secondary)';
     }
 
-    // 6. Display Recovery Key
-    const recoveryKeyEl = document.getElementById('recoveryKeyDisplay');
-    if (recoveryKeyEl) {
-        recoveryKeyEl.textContent = localStorage.getItem('wifi_recovery_key') || 'Not Set';
-    }
 
     // 7. Display Recovery Email
     const recoveryEmailInput = document.getElementById('recoveryEmailInput');
@@ -145,35 +177,17 @@ function initializeAppUI() {
     // 8. Final UI Render
     updateDisplay();
 
-    // 9. Start Live Clock
-    startLiveClock();
+    // 9. Display Key if not set
+    if (!localStorage.getItem('wifi_recovery_key')) {
+        const randomKey = 'SAMA-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        localStorage.setItem('wifi_recovery_key', randomKey);
+    }
+    const recoveryKeyEl = document.getElementById('recoveryKeyDisplay');
+    if (recoveryKeyEl) {
+        recoveryKeyEl.textContent = localStorage.getItem('wifi_recovery_key');
+    }
 }
 
-function startLiveClock() {
-    const update = () => {
-        const now = getJubaDate();
-        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-
-        // Format time with AM/PM
-        let hours = now.getHours();
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12; // the hour '0' should be '12'
-
-        const timeStr = `${hours}:${minutes}:${seconds} ${ampm}`;
-        const dateStr = now.toLocaleDateString('en-US', dateOptions);
-
-        const dateEl = document.getElementById('currentDate');
-        if (dateEl) {
-            dateEl.textContent = `${dateStr} • ${timeStr}`;
-        }
-    };
-
-    update(); // Initial call
-    setInterval(update, 1000); // Recurring call
-}
 
 
 // Separate function for periodic background sync (Rollover)
@@ -181,13 +195,6 @@ function checkDateRollover() {
     const now = getJubaDate();
     const today = getLocalDateString(now);
 
-    // Update Header Date
-    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const dateStr = now.toLocaleDateString('en-US', dateOptions);
-    const dateEl = document.getElementById('currentDate');
-    if (dateEl && dateEl.textContent !== dateStr) {
-        dateEl.textContent = dateStr;
-    }
 
     // Detect Day Rollover for Auto-Archive
     // Use localStorage to persist last check date across sessions
@@ -622,12 +629,6 @@ function saveRecoveryEmail() {
     console.log(`%c📧 Recovery Email Set: ${email}`, 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
 }
 
-// Ensure every device has a unique recovery key for safety
-if (!localStorage.getItem('wifi_recovery_key')) {
-    const randomKey = 'SAMA-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    localStorage.setItem('wifi_recovery_key', randomKey);
-    console.log("%c SAMA WI-FI RECOVERY KEY: " + randomKey, "background: #6366f1; color: white; font-size: 14px; padding: 10px; border-radius: 5px;");
-}
 
 // Transaction Logic
 function addClient(event) {
@@ -648,6 +649,7 @@ function addClient(event) {
     };
 
     clients.unshift(newClient);
+    lastAction = { type: 'add', data: newClient };
     saveData();
 
     // Explicitly trigger cloud sync after adding to ensure real-time visibility on other devices
@@ -662,7 +664,7 @@ function addClient(event) {
     if (filterEl) filterEl.value = getLocalDateString();
 
     updateDisplay();
-    showNotification('Client added successfully!');
+    showUndoNotification('Client registered successfuly! ✅');
 }
 
 function addVoucher(event) {
@@ -693,6 +695,7 @@ function addVoucher(event) {
     voucherStock[type]--;
 
     vouchers.unshift(newVoucher);
+    lastAction = { type: 'add', data: newVoucher };
     saveData();
     form.reset();
 
@@ -701,7 +704,7 @@ function addVoucher(event) {
     if (filterEl) filterEl.value = getLocalDateString();
 
     updateDisplay();
-    showNotification(`Voucher sold. Remaining stock for ${type}: ${voucherStock[type]}`);
+    showUndoNotification(`Voucher sold. Stock for ${type} now: ${voucherStock[type]}`);
 }
 
 function restockVoucher(type, amount) {
@@ -728,6 +731,7 @@ function addExpense(event) {
     };
 
     expenses.unshift(newExpense);
+    lastAction = { type: 'add', data: newExpense };
     saveData();
     form.reset();
 
@@ -736,7 +740,7 @@ function addExpense(event) {
     if (filterEl) filterEl.value = getLocalDateString();
 
     updateDisplay();
-    showNotification('Expense recorded');
+    showUndoNotification('Expense recorded! 💸');
 }
 
 // QR Scanner Logic
@@ -904,7 +908,26 @@ function updateStockDisplay() {
     const ids = ["1hr", "2hr", "day", "week", "month"];
     ids.forEach(id => {
         const el = document.getElementById('stock' + id);
-        if (el) el.textContent = voucherStock[id] || '0';
+        if (el) {
+            const stock = voucherStock[id] || 0;
+            el.textContent = stock;
+
+            // Visual alert for low stock
+            const parent = el.closest('.glass-card');
+            if (parent) {
+                if (stock <= 5) {
+                    parent.style.borderColor = 'var(--danger)';
+                    parent.style.animation = stock === 0 ? 'pulse-subtle 2s infinite' : 'none';
+                    el.style.color = 'var(--danger)';
+                } else if (stock <= 10) {
+                    parent.style.borderColor = 'var(--warning)';
+                    el.style.color = 'var(--warning)';
+                } else {
+                    parent.style.borderColor = '';
+                    el.style.color = '';
+                }
+            }
+        }
     });
 }
 
@@ -930,6 +953,89 @@ function updateStats() {
     if (revenueEl) revenueEl.textContent = totalRevenue.toLocaleString() + ' SSP';
     if (expensesEl) expensesEl.textContent = totalExp.toLocaleString() + ' SSP';
     if (netProfitEl) netProfitEl.textContent = (totalRevenue - totalExp).toLocaleString() + ' SSP';
+
+    // Update Header Active Sessions Badge
+    const activeSessionsBadge = document.getElementById('activeSessionsBadge');
+    const activeCountEl = document.getElementById('activeCount');
+    const activeCount = todayClients.length + todayVouchers.length;
+
+    if (activeSessionsBadge && activeCount > 0) {
+        activeCountEl.textContent = activeCount;
+        activeSessionsBadge.style.display = 'inline-flex';
+    } else if (activeSessionsBadge) {
+        activeSessionsBadge.style.display = 'none';
+    }
+
+    // Modern Sparklines Implementation
+    const history = [...dailyReports].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-10);
+    if (history.length > 1) {
+        drawSparkline('sparklineVolume', history.map(r => r.summary.totalClients), 'var(--primary)');
+        drawSparkline('sparklineRevenue', history.map(r => r.summary.revenue), 'var(--accent)');
+        drawSparkline('sparklineExpenses', history.map(r => r.summary.expenses), 'var(--danger)');
+        drawSparkline('sparklineProfit', history.map(r => r.summary.netProfit), '#fff');
+    }
+}
+
+function drawSparkline(canvasId, data, color) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // Get actual color value if it's a CSS variable
+    let actualColor = color;
+    if (color.startsWith('var')) {
+        actualColor = getComputedStyle(document.documentElement).getPropertyValue(color.slice(4, -1)).trim();
+    } else if (color === '#fff') {
+        actualColor = '#ffffff';
+    }
+
+    const width = canvas.width = canvas.offsetWidth;
+    const height = canvas.height = canvas.offsetHeight;
+
+    ctx.clearRect(0, 0, width, height);
+    if (data.length < 2) return;
+
+    const max = Math.max(...data) || 1;
+    const min = Math.min(...data);
+    const range = max - min || 1;
+    const stepX = width / (data.length - 1);
+
+    ctx.beginPath();
+    ctx.strokeStyle = actualColor;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    data.forEach((val, i) => {
+        const x = i * stepX;
+        const y = height - ((val - min) / range * (height - 10) + 5);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+
+    ctx.stroke();
+
+    // Fade area
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+
+    // Convert actualColor to RGBA for the gradient
+    let rgba = 'rgba(99, 102, 241, 0.2)'; // Default fallback
+    if (actualColor.startsWith('#')) {
+        const r = parseInt(actualColor.slice(1, 3), 16) || 0;
+        const g = parseInt(actualColor.slice(3, 5), 16) || 0;
+        const b = parseInt(actualColor.slice(5, 7), 16) || 0;
+        rgba = `rgba(${r}, ${g}, ${b}, 0.2)`;
+    } else if (actualColor.startsWith('rgb')) {
+        // If it's already rgba, use it. Otherwise, convert rgb to rgba.
+        rgba = actualColor.includes('rgba') ? actualColor : actualColor.replace('rgb', 'rgba').replace(')', ', 0.2)');
+    }
+
+    gradient.addColorStop(0, rgba);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.fill();
 }
 
 function renderTransactions() {
@@ -979,7 +1085,7 @@ function renderTransactions() {
 
     combined.forEach(item => {
         const div = document.createElement('div');
-        div.className = `list-item glass-card ${item.type}`;
+        div.className = `list-item glass-card ${item.type} animate-fade-in`;
 
         const isExpense = item.type === 'expense';
         const isVoucher = item.type === 'voucher';
@@ -995,7 +1101,6 @@ function renderTransactions() {
                 "transport": "Transport", "salary": "Salary", "other": "Other"
             };
             const catLabel = expLabels[item.category] || item.category || 'Expense';
-            // Capitalize first letter just in case
             title = catLabel.charAt(0).toUpperCase() + catLabel.slice(1);
             if (item.personName) title += ` (${item.personName})`;
         }
@@ -1007,6 +1112,24 @@ function renderTransactions() {
             title = `🎫 ${label} (${item.username || '?'}) (${item.password || '?'})`;
         }
 
+        // Apply Highlight
+        const highlight = (text) => {
+            if (!searchTerm) return text;
+            const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(${escaped})`, 'gi');
+            return String(text).replace(regex, '<mark class="highlight">$1</mark>');
+        };
+
+        const displayTitle = highlight(title);
+        const displayMeta = `
+            <span style="color: var(--text-main); font-weight: 500">${dateStr}</span> • ${item.addedBy || 'Admin'} 
+            ${isVoucher ? ' • Client: ' + highlight(item.clientName || 'Cash') : ''}
+            ${item.phoneType ? ' • 📱 ' + highlight(item.phoneType) : ''} 
+            ${item.notes ? ' • 📝 ' + highlight(item.notes) : ''}
+            ${isExpense && item.reason ? ' • 📝 ' + highlight(item.reason) : ''}
+            ${isVoucher ? ' • Pwd: ' + highlight(item.password || 'none') : ''}
+        `;
+
         let icon = isExpense ? '💸' : (isVoucher ? '🎫' : '👤');
         let typeLabel = isExpense ? 'EXPENSE' : (isVoucher ? 'VOUCHER' : 'CLIENT');
 
@@ -1016,14 +1139,9 @@ function renderTransactions() {
                     ${icon}
                 </div>
                 <div class="item-main">
-                    <div class="item-title">${title}</div>
+                    <div class="item-title">${displayTitle}</div>
                     <div class="item-meta" style="font-size: 0.8rem; color: var(--text-muted);">
-                        <span style="color: var(--text-main); font-weight: 500">${dateStr}</span> • ${item.addedBy || 'Admin'} 
-                        ${isVoucher ? ' • Client: ' + (item.clientName || 'Cash') : ''}
-                        ${item.phoneType ? ' • 📱 ' + item.phoneType : ''} 
-                        ${item.notes ? ' • 📝 ' + item.notes : ''}
-                        ${isExpense && item.reason ? ' • 📝 ' + item.reason : ''}
-                        ${isVoucher ? ' • Pwd: ' + (item.password || 'none') : ''}
+                        ${displayMeta}
                     </div>
                 </div>
             </div>
@@ -1193,20 +1311,28 @@ function deleteItem(id, type) {
 
     // Convert to string for safe comparison
     const targetId = String(id);
+    let deletedItem = null;
 
     if (type === 'client' || !type) {
+        deletedItem = clients.find(c => String(c.id) === targetId);
         clients = clients.filter(c => String(c.id) !== targetId);
     }
     if (type === 'voucher' || !type) {
+        deletedItem = vouchers.find(v => String(v.id) === targetId);
         vouchers = vouchers.filter(v => String(v.id) !== targetId);
     }
     if (type === 'expense' || !type) {
+        deletedItem = expenses.find(e => String(e.id) === targetId);
         expenses = expenses.filter(e => String(e.id) !== targetId);
+    }
+
+    if (deletedItem) {
+        lastAction = { type: 'delete', data: deletedItem };
     }
 
     saveData();
     updateDisplay();
-    showNotification('Item successfully removed');
+    showUndoNotification('Item successfully removed 🗑️');
 }
 
 // Auto-Fill Logic
@@ -1479,6 +1605,15 @@ function saveEdit(event) {
 }
 
 function switchTab(tabId) {
+    const list = document.getElementById('transactionList');
+    if (list && tabId === 'clients') {
+        list.innerHTML = `
+            <div class="skeleton" style="height: 80px; margin-bottom: 12px;"></div>
+            <div class="skeleton" style="height: 80px; margin-bottom: 12px;"></div>
+            <div class="skeleton" style="height: 80px; margin-bottom: 12px;"></div>
+        `;
+    }
+
     currentTab = tabId;
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`${tabId}Tab`).classList.remove('hidden');
@@ -1488,24 +1623,123 @@ function switchTab(tabId) {
 
     if (tabId === 'history') loadHistory();
 
-    // Refresh icons
-    setTimeout(() => lucide.createIcons(), 50);
+    // Refresh display after a short delay to allow skeleton to be seen (modern feel)
+    setTimeout(() => {
+        updateDisplay();
+        lucide.createIcons();
+    }, 150);
 }
 
 function showNotification(message, type = 'success') {
-    const notify = document.createElement('div');
-    notify.className = `glass-card notification ${type}`;
-    notify.style.position = 'fixed';
-    notify.style.top = '20px';
-    notify.style.right = '20px';
-    notify.style.zIndex = '9999';
-    notify.style.background = type === 'error' ? 'var(--danger)' : 'var(--accent)';
-    notify.style.color = 'white';
-    notify.style.border = 'none';
-    notify.textContent = message;
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; width: 320px; pointer-events: none;';
+        document.body.appendChild(container);
+    }
 
-    document.body.appendChild(notify);
-    setTimeout(() => notify.remove(), 3000);
+    const toast = document.createElement('div');
+    toast.className = `glass-card notification ${type} animate-slide-in`;
+    toast.style.cssText = `
+        background: ${type === 'error' ? 'var(--danger)' : 'var(--accent)'};
+        color: white;
+        border: none;
+        padding: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        pointer-events: auto;
+    `;
+
+    const icon = type === 'error' ? '🚫' : '✅';
+    toast.innerHTML = `<span>${icon}</span> <div style="flex: 1; font-weight: 600;">${message}</div>`;
+
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(50px)';
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
+}
+
+function showUndoNotification(message) {
+    const existing = document.getElementById('undoToast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'undoToast';
+    toast.className = 'glass-card notification info';
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        background: #1e293b;
+        color: white;
+        border: 1px solid var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 12px 24px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    `;
+
+    toast.innerHTML = `
+        <div style="background: var(--primary); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+            <i data-lucide="rotate-ccw" style="width: 16px; color: white;"></i>
+        </div>
+        <span style="font-weight: 500;">${message}</span>
+        <button onclick="undoLastAction()" class="btn" style="padding: 8px 16px; background: var(--primary); font-size: 0.75rem; border-radius: 8px; font-weight: 700;">
+            UNDO
+        </button>
+        <button onclick="this.parentElement.remove()" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem; margin-left: 5px;">&times;</button>
+    `;
+
+    document.body.appendChild(toast);
+    lucide.createIcons();
+
+    if (undoTimeout) clearTimeout(undoTimeout);
+    undoTimeout = setTimeout(() => {
+        if (toast) toast.remove();
+        lastAction = null;
+    }, 10000); // 10 seconds to undo
+}
+
+function undoLastAction() {
+    if (!lastAction) return;
+
+    if (lastAction.type === 'add') {
+        const item = lastAction.data;
+        if (item.type === 'client') clients = clients.filter(c => c.id !== item.id);
+        else if (item.type === 'voucher') {
+            vouchers = vouchers.filter(v => v.id !== item.id);
+            // Put stock back
+            if (voucherStock[item.voucherType] !== undefined) {
+                voucherStock[item.voucherType]++;
+            }
+        }
+        else if (item.type === 'expense') expenses = expenses.filter(e => e.id !== item.id);
+    }
+    else if (lastAction.type === 'delete') {
+        const item = lastAction.data;
+        if (item.type === 'client') clients.unshift(item);
+        else if (item.type === 'voucher') {
+            vouchers.unshift(item);
+            voucherStock[item.voucherType]--;
+        }
+        else if (item.type === 'expense') expenses.unshift(item);
+    }
+
+    saveData();
+    updateDisplay();
+    lastAction = null;
+    const toast = document.getElementById('undoToast');
+    if (toast) toast.remove();
+    showNotification('Action undone! 🔄');
 }
 
 // History & Report Logic
@@ -1688,7 +1922,7 @@ function printTicket(id, type) {
             <!-- Header -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
                 <div style="display: flex; align-items: center; gap: 20px;">
-                    <img src="assets/img/sama-logo.png" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
+                    <img src="/assets/img/sama-logo.png?v=3.5" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
                     <div>
                         <h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">SAMA WI-FI</h1>
                         <p style="margin: 0; color: #6366f1; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 2px;">Premium Access Token</p>
@@ -1949,6 +2183,98 @@ function renderChart() {
             }
         }
     });
+
+    renderVoucherMixChart();
+}
+
+function renderVoucherMixChart() {
+    const canvas = document.getElementById('voucherMixChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    if (voucherMixChart) voucherMixChart.destroy();
+
+    const today = getLocalDateString();
+    let dataPool = vouchers.filter(v => getLocalDateString(v.date) === today);
+    let isMock = false;
+
+    if (dataPool.length === 0) {
+        if (vouchers.length > 0) {
+            dataPool = vouchers.slice(0, 50);
+        } else {
+            // Sample data for empty state to show the chart
+            isMock = true;
+            dataPool = [
+                { voucherType: '1hr' }, { voucherType: '1hr' },
+                { voucherType: '2hr' }, { voucherType: 'day' }
+            ];
+        }
+    }
+
+    const counts = { "1hr": 0, "2hr": 0, "day": 0, "week": 0, "month": 0 };
+    dataPool.forEach(v => {
+        if (counts[v.voucherType] !== undefined) counts[v.voucherType]++;
+    });
+
+    const labels = ["1 Hr", "2 Hr", "Day", "Week", "Month"];
+    const values = Object.values(counts);
+
+    voucherMixChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#0ea5e9', '#f43f5e'],
+                hoverBackgroundColor: ['#818cf8', '#34d399', '#fbbf24', '#38bdf8', '#fb7185'],
+                borderWidth: 0,
+                hoverOffset: 20
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                animateScale: true,
+                animateRotate: true
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#f8fafc',
+                        padding: 10,
+                        font: { family: 'Outfit', size: 10, weight: '600' },
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    enabled: !isMock,
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    titleFont: { family: 'Outfit', size: 14 },
+                    bodyFont: { family: 'Outfit', size: 13 },
+                    callbacks: {
+                        label: function (context) {
+                            return ` ${context.label}: ${context.raw} Sold`;
+                        }
+                    }
+                }
+            },
+            cutout: '75%'
+        }
+    });
+
+    // Add visual indicator if it's mock data
+    if (isMock) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.5)';
+        ctx.font = 'bold 12px Outfit';
+        ctx.textAlign = 'center';
+        ctx.fillText('NO DATA YET', canvas.width / 2, canvas.height / 2 - 5);
+        ctx.font = '9px Outfit';
+        ctx.fillText('START SELLING', canvas.width / 2, canvas.height / 2 + 10);
+        ctx.restore();
+    }
 }
 
 /**
