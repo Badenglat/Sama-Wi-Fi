@@ -114,9 +114,10 @@ function initializeAppUI() {
         const secs = String(now.getSeconds()).padStart(2, '0');
 
         if (dateEl) {
-            let greeting = 'Good Evening';
-            if (rawHrs < 12) greeting = 'Good Morning';
-            else if (rawHrs < 18) greeting = 'Good Afternoon';
+            let greeting = 'Good Night';
+            if (rawHrs >= 5 && rawHrs < 12) greeting = 'Good Morning';
+            else if (rawHrs >= 12 && rawHrs < 18) greeting = 'Good Afternoon';
+            else if (rawHrs >= 18 && rawHrs < 22) greeting = 'Good Evening';
 
             dateEl.innerHTML = `
                 <div class="amazing-clock-container">
