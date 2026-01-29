@@ -175,6 +175,8 @@ function initializeAppUI() {
     }
 
     // 8. Final UI Render
+    const searchBox = document.getElementById('searchBox');
+    if (searchBox) searchBox.value = ''; // Force clear any browser autofill
     updateDisplay();
 
     // 9. Display Key if not set
