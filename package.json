@@ -1,7 +1,7 @@
 {
   "name": "sama-wi-fi",
   "version": "1.0.0",
-  "description": "",
+  "description": "Sama Wi-Fi Client Manager",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
@@ -13,14 +13,21 @@
     "url": "git+https://github.com/Badenglat/Sama-Wi-Fi.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Sama",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/Badenglat/Sama-Wi-Fi/issues"
   },
   "homepage": "https://github.com/Badenglat/Sama-Wi-Fi#readme",
+  "dependencies": {
+    "lucide": "^0.477.0",
+    "chart.js": "^4.4.8",
+    "@emailjs/browser": "^4.4.1",
+    "html5-qrcode": "^2.3.8",
+    "firebase": "^11.4.0"
+  },
   "devDependencies": {
-    "vite": "^7.3.1"
+    "vite": "^6.2.0"
   }
 }

@@ -1,8 +1,10 @@
 /**
- * Sama Wi-Fi Client Manager - Core Logic
+ * Sama Wi-Fi - Main Application Logic
+ * Version: 7.0 (Multi-Sensory Update)
  */
+console.log("%c🚀 SAMA WIFI V7.0 - MODERN UI ACTIVE", "color: #6366f1; font-weight: bold; font-size: 14px;");
 
-// State Management
+// Global Data State Management
 let clients = [];
 let vouchers = [];
 let voucherStock = {
@@ -30,16 +32,56 @@ let undoTimeout = null;
 const getJubaDate = () => {
     // Use Intl API to properly get the time in Juba, South Sudan (CAT)
     // This creates a Date object where the "local" time components match Juba time
-    return new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Juba" }));
+    try {
+        return new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Juba" }));
+    } catch (e) {
+        return new Date(); // Fallback if Intl is not supported
+    }
 };
 
-const getLocalDateString = (date = getJubaDate()) => {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return "";
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+// 🌍 Optimized Date Getter (Juba, South Sudan: UTC+2)
+const getLocalDateString = (dateInput) => {
+    // 1. Handle missing input
+    if (!dateInput) {
+        const d = getJubaDate();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // 2. If it's already a date string (YYYY-MM-DD), return it
+    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+        return dateInput;
+    }
+
+    // 3. Robust conversion: Get Juba date part from ISO or Timestamp
+    try {
+        const d = new Date(dateInput);
+        if (isNaN(d.getTime())) return "";
+        // Extract Juba date using Intl for timezone accuracy
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Africa/Juba',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).formatToParts(d);
+        const y = parts.find(p => p.type === 'year').value;
+        const m = parts.find(p => p.type === 'month').value;
+        const day = parts.find(p => p.type === 'day').value;
+        return `${y}-${m}-${day}`;
+    } catch (e) {
+        return typeof dateInput === 'string' ? dateInput.split('T')[0] : "";
+    }
+};
+
+// Simplified Debounce
+const debounce = (fn, delay) => {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), delay);
+    }
 };
 
 // Initialize App
@@ -74,6 +116,60 @@ function loadData() {
     console.log(`System State: Loaded (${clients.length} clients, ${vouchers.length} vouchers, ${expenses.length} expenses)`);
 }
 
+/**
+ * 🔊 SAMA SOUND ENGINE
+ * Uses Web Audio API to synthesize clean, premium UI sounds
+ */
+const SoundEngine = {
+    ctx: null,
+    init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+    play(type) {
+        try {
+            this.init();
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain); gain.connect(this.ctx.destination);
+
+            const now = this.ctx.currentTime;
+            if (type === 'success') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(500, now); osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'notify') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(400, now); gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'warning') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+                gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            } else if (type === 'confetti') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now); osc.stop(now + 0.5);
+            }
+        } catch (e) { console.warn("Sound Engine: Audio not supported or blocked."); }
+    }
+};
+
+/**
+ * 🎉 CELEBRATION ENGINE
+ */
+function triggerCelebration() {
+    SoundEngine.play('confetti');
+    if (typeof confetti === 'function') {
+        const count = 200;
+        const defaults = { origin: { y: 0.7 }, zIndex: 9999 };
+        function fire(particleRatio, opts) {
+            confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * particleRatio) }));
+        }
+        fire(0.25, { spread: 26, startVelocity: 55 });
+        fire(0.2, { spread: 60 });
+        fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+        fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+        fire(0.1, { spread: 120, startVelocity: 45 });
+    }
+}
 function saveData() {
     localStorage.setItem('wifi_clients', JSON.stringify(clients));
     localStorage.setItem('wifi_vouchers', JSON.stringify(vouchers));
@@ -102,16 +198,22 @@ function saveData() {
 function initializeAppUI() {
     // 1. Digital Clock Implementation
     const dateEl = document.getElementById('currentDate');
+    // Optimized clock update - avoid repeated DOM reads
+    let lastClockUpdate = "";
     const updateHeaderTime = () => {
         const now = getJubaDate();
+        const rawHrs = now.getHours();
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const clockStr = `${rawHrs}:${mins}`;
+
+        // Only update if minutes changed (reduced UI thrashing)
+        if (clockStr === lastClockUpdate) return;
+        lastClockUpdate = clockStr;
+
         const dateOptions = { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' };
         const dateStr = now.toLocaleDateString('en-US', dateOptions);
-
-        const rawHrs = now.getHours();
         const ampm = rawHrs >= 12 ? 'PM' : 'AM';
         const displayHrs = rawHrs % 12 || 12;
-        const mins = String(now.getMinutes()).padStart(2, '0');
-        const secs = String(now.getSeconds()).padStart(2, '0');
 
         if (dateEl) {
             let greeting = 'Good Night';
@@ -139,7 +241,8 @@ function initializeAppUI() {
         }
     };
     updateHeaderTime();
-    setInterval(updateHeaderTime, 1000);
+    // Update every 30 seconds instead of 1 (clock only shows minutes)
+    setInterval(updateHeaderTime, 30000);
 
     // 2. Force the filter to TODAY on startup
     const filterEl = document.getElementById('filterDate');
@@ -176,8 +279,13 @@ function initializeAppUI() {
     }
 
     // 8. Final UI Render
-    const searchBox = document.getElementById('searchBox');
-    if (searchBox) searchBox.value = ''; // Force clear any browser autofill
+    // 8. Debounced Display Updates
+    window.debouncedUpdateDisplay = debounce(() => updateDisplay(), 300);
+
+    // 9. Force Clean Search State
+    const searchBox = document.getElementById('search_filter_main');
+    if (searchBox) searchBox.value = '';
+
     updateDisplay();
 
     // 9. Display Key if not set
@@ -319,6 +427,13 @@ async function login(username, password) {
     if (localMatch) {
         sessionStorage.setItem('wifi_auth', 'true');
 
+        // Security: Clear search box more aggressively to stop autofill
+        const activitySearch = document.getElementById('search_filter_main');
+        if (activitySearch) {
+            activitySearch.value = '';
+            activitySearch.blur();
+        }
+
         // AUTO-SYNC: If logged in but cloud sync is not active, try to pull latest data
         if (typeof loadFromCloud === 'function' && localStorage.getItem('wifi_cloud_enabled') !== 'true') {
             showNotification('Connecting to cloud for data synchronization...', 'info');
@@ -381,11 +496,19 @@ function updateSecurity(newUsername, oldPass, newPass) {
         return;
     }
 
+    const prevUsername = systemUsername;
     systemUsername = newUsername.trim();
     if (newPass) systemPassword = newPass.trim();
 
     saveData();
     showNotification('System security updated successfully!');
+
+    // If username changed, force a clean state for the search box
+    if (prevUsername !== systemUsername) {
+        const sb = document.getElementById('search_filter_main');
+        if (sb) sb.value = '';
+    }
+
     setTimeout(() => location.reload(), 1500);
 }
 
@@ -409,14 +532,14 @@ function handleForgotPassword() {
             <div class="glass-card" style="max-width: 500px; width: 90%; padding: 30px; border-radius: 16px;">
                 <h2 style="margin-bottom: 20px; color: var(--text-main);">🔐 Password Recovery</h2>
                 <p style="color: var(--text-muted); margin-bottom: 25px;">Choose a recovery method:</p>
-                
+
                 <div style="display: flex; flex-direction: column; gap: 15px;">
                     ${recoveryKey ? `
                         <button onclick="recoverWithKey()" class="btn btn-primary" style="width: 100%; padding: 15px; background: var(--primary);">
                             🔑 Use Recovery Key
                         </button>
                     ` : ''}
-                    
+
                     ${recoveryEmail ? `
                         <button onclick="recoverWithEmail()" class="btn btn-primary" style="width: 100%; padding: 15px; background: var(--info);">
                             📧 Send Reset Link to Email
@@ -428,12 +551,12 @@ function handleForgotPassword() {
                             </p>
                         </div>
                     `}
-                    
+
                     <button onclick="closeRecoveryModal()" class="btn" style="width: 100%; padding: 15px; background: rgba(255,255,255,0.1);">
                         Cancel
                     </button>
                 </div>
-                
+
                 ${!recoveryKey && !recoveryEmail ? `
                     <div style="margin-top: 20px; padding: 15px; background: rgba(99, 102, 241, 0.1); border-radius: 8px;">
                         <p style="color: var(--text-muted); margin: 0; font-size: 0.85rem;">
@@ -492,6 +615,11 @@ async function recoverWithEmail() {
     showNotification('Sending reset code to your email...', 'info');
 
     try {
+        // Only run if configured
+        if (!window.emailjs || !window.emailjs.init || recoveryEmail.includes('YOUR_')) {
+            throw new Error('Email service not configured');
+        }
+
         // Initialize EmailJS (you'll need to set up your own EmailJS account)
         emailjs.init("YOUR_EMAILJS_PUBLIC_KEY"); // Replace with your EmailJS public key
 
@@ -535,17 +663,17 @@ function showResetCodeInput() {
             <div class="glass-card" style="max-width: 500px; width: 90%; padding: 30px; border-radius: 16px;">
                 <h2 style="margin-bottom: 20px; color: var(--text-main);">📧 Enter Reset Code</h2>
                 <p style="color: var(--text-muted); margin-bottom: 20px;">Check your email for the reset code (valid for 15 minutes):</p>
-                
+
                 <div style="margin-bottom: 20px;">
-                    <input type="text" id="resetCodeInput" placeholder="Enter reset code" 
+                    <input type="text" id="resetCodeInput" placeholder="Enter reset code"
                         style="width: 100%; padding: 12px; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px; text-align: center; font-family: monospace;">
                 </div>
-                
+
                 <div style="margin-bottom: 20px;">
-                    <input type="password" id="newPasswordInput" placeholder="Enter new password (min 4 characters)" 
+                    <input type="password" id="newPasswordInput" placeholder="Enter new password (min 4 characters)"
                         style="width: 100%; padding: 12px; font-size: 1rem;">
                 </div>
-                
+
                 <div style="display: flex; gap: 10px;">
                     <button onclick="verifyResetCode()" class="btn btn-primary" style="flex: 1; padding: 12px; background: var(--accent);">
                         Reset Password
@@ -627,6 +755,7 @@ function saveRecoveryEmail() {
     }
 
     localStorage.setItem('wifi_recovery_email', email);
+    saveData(); // Sync to cloud
     showNotification('✅ Recovery email saved successfully!', 'success');
 
     console.log(`%c📧 Recovery Email Set: ${email}`, 'background: #10b981; color: white; padding: 5px; border-radius: 3px;');
@@ -667,7 +796,9 @@ function addClient(event) {
     if (filterEl) filterEl.value = getLocalDateString();
 
     updateDisplay();
-    showUndoNotification('Client registered successfuly! ✅');
+    showNotification(`✅ Registered: ${newClient.name}`, 'success');
+    SoundEngine.play('success');
+    if (newClient.status === 'paid') triggerCelebration();
 }
 
 function addVoucher(event) {
@@ -675,6 +806,7 @@ function addVoucher(event) {
     const form = event.target;
     const type = form.voucherType.value;
     const amount = parseInt(form.voucherAmount.value);
+    const username = form.voucherUsername.value; // Get username for notification
 
     // Check Stock
     if (voucherStock[type] <= 0) {
@@ -687,7 +819,7 @@ function addVoucher(event) {
         type: 'voucher',
         voucherType: type,
         amount: amount,
-        username: form.voucherUsername.value,
+        username: username,
         password: form.voucherPassword.value,
         clientName: form.voucherClient.value || 'Voucher Sale',
         date: getJubaDate().toISOString(),
@@ -706,8 +838,11 @@ function addVoucher(event) {
     const filterEl = document.getElementById('filterDate');
     if (filterEl) filterEl.value = getLocalDateString();
 
+    showNotification(`🎫 Voucher Sold: ${username}`, 'success');
+    SoundEngine.play('success');
+    triggerCelebration();
+
     updateDisplay();
-    showUndoNotification(`Voucher sold. Stock for ${type} now: ${voucherStock[type]}`);
 }
 
 function restockVoucher(type, amount) {
@@ -784,8 +919,7 @@ function onScanSuccess(decodedText, decodedResult) {
 
     // 1. Immediate Feedback
     if (navigator.vibrate) navigator.vibrate(200); // Vibrate for 200ms
-    const beep = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbqWEzMzft9/hvb25v1+3t3Z18fH7R6+vZkXl5fNPr69uReXl80+vr2ZF5eXzT6+vbkXl5fNPr69uReXl80+vr2ZF5eXzT6+vbkXl5fNPr69uReXl80+vr2ZF5eXw==');
-    beep.play().catch(e => { }); // Play beep if allowed
+    SoundEngine.play('success'); // Use the modern sound engine instead of raw base64 beep
 
     // Stop scanning on success
     stopQRScanner();
@@ -904,6 +1038,7 @@ function updateDisplay() {
     renderExpenseHistory();
     updateStockDisplay();
     updateClientDatalist();
+    renderDebtorsList();
     if (currentTab === 'history') loadHistory();
 }
 
@@ -935,39 +1070,63 @@ function updateStockDisplay() {
 }
 
 function updateStats() {
-    const today = getLocalDateString();
-
-    // Robust filtering to prevent crashes on missing data
-    // Use proper local date comparison instead of UTC startsWith
-    const todayClients = clients.filter(c => c && c.date && getLocalDateString(c.date) === today);
-    const todayVouchers = vouchers.filter(v => v && v.date && getLocalDateString(v.date) === today);
-    const todayExpenses = expenses.filter(e => e && e.date && getLocalDateString(e.date) === today);
-
-    const totalRevenue = todayClients.filter(c => c.status === 'paid').reduce((sum, c) => sum + (parseInt(c.amount) || 0), 0) +
-        todayVouchers.reduce((sum, v) => sum + (parseInt(v.amount) || 0), 0);
-    const totalExp = todayExpenses.reduce((sum, e) => sum + (parseInt(e.amount) || 0), 0);
+    const filterEl = document.getElementById('filterDate');
+    const selectedDate = filterEl?.value || getLocalDateString();
+    const isTodaySelected = selectedDate === getLocalDateString();
 
     const totalClientsEl = document.getElementById('statTotalClients');
     const revenueEl = document.getElementById('statRevenue');
     const expensesEl = document.getElementById('statExpenses');
     const netProfitEl = document.getElementById('statNetProfit');
+    const unpaidEl = document.getElementById('statUnpaid');
 
-    if (totalClientsEl) totalClientsEl.textContent = todayClients.length + todayVouchers.length;
-    if (revenueEl) revenueEl.textContent = totalRevenue.toLocaleString() + ' SSP';
-    if (expensesEl) expensesEl.textContent = totalExp.toLocaleString() + ' SSP';
-    if (netProfitEl) netProfitEl.textContent = (totalRevenue - totalExp).toLocaleString() + ' SSP';
+    // Update stat labels to show which date they represent
+    const statLabels = document.querySelectorAll('.stat-label');
+    statLabels.forEach(label => {
+        if (!label.dataset.originalText) label.dataset.originalText = label.textContent;
+        label.textContent = isTodaySelected ? label.dataset.originalText : `${label.dataset.originalText.split(' ')[0]} (${selectedDate.split('-').slice(1).join('/')})`;
+    });
 
-    // Update Header Active Sessions Badge
-    const activeSessionsBadge = document.getElementById('activeSessionsBadge');
-    const activeCountEl = document.getElementById('activeCount');
-    const activeCount = todayClients.length + todayVouchers.length;
+    // Single pass calculation for performance
+    let rev = 0;
+    let exp = 0;
+    let cnt = 0;
+    let unpaidToday = 0;
 
-    if (activeSessionsBadge && activeCount > 0) {
-        activeCountEl.textContent = activeCount;
-        activeSessionsBadge.style.display = 'inline-flex';
-    } else if (activeSessionsBadge) {
-        activeSessionsBadge.style.display = 'none';
-    }
+    clients.forEach(c => {
+        if (!c || !c.date) return;
+        const isTargetDate = getLocalDateString(c.date) === selectedDate;
+        if (isTargetDate) {
+            cnt++;
+            if (c.status === 'paid') rev += (parseInt(c.amount) || 0);
+            else if (c.status === 'unpaid' || c.status === 'borrowed') unpaidToday += (parseInt(c.amount) || 0);
+        }
+    });
+
+    vouchers.forEach(v => {
+        if (!v || !v.date) return;
+        const isTargetDate = getLocalDateString(v.date) === selectedDate;
+        if (isTargetDate) {
+            cnt++;
+            rev += (parseInt(v.amount) || 0);
+        }
+    });
+
+    expenses.forEach(e => {
+        if (!e || !e.date) return;
+        const isTargetDate = getLocalDateString(e.date) === selectedDate;
+        if (isTargetDate) {
+            exp += (parseInt(e.amount) || 0);
+        }
+    });
+
+    // Display Stats
+    if (totalClientsEl) totalClientsEl.textContent = cnt;
+    if (revenueEl) revenueEl.textContent = rev.toLocaleString() + ' SSP';
+    if (expensesEl) expensesEl.textContent = exp.toLocaleString() + ' SSP';
+    if (netProfitEl) netProfitEl.textContent = (rev - exp).toLocaleString() + ' SSP';
+    if (unpaidEl) unpaidEl.textContent = unpaidToday.toLocaleString() + ' SSP';
+
 
     // Modern Sparklines Implementation
     const history = [...dailyReports].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-10);
@@ -976,6 +1135,34 @@ function updateStats() {
         drawSparkline('sparklineRevenue', history.map(r => r.summary.revenue), 'var(--accent)');
         drawSparkline('sparklineExpenses', history.map(r => r.summary.expenses), 'var(--danger)');
         drawSparkline('sparklineProfit', history.map(r => r.summary.netProfit), '#fff');
+        drawSparkline('sparklineUnpaid', history.map(r => r.summary.unpaid || 0), 'var(--warning)');
+    }
+
+    /**
+     * Business Intelligence Analysis
+     */
+    const profit = (rev - exp);
+    const insightHeader = document.getElementById('businessInsight');
+    const insightMessage = document.getElementById('insightMessage');
+    const adviceText = document.getElementById('adviceText');
+
+    if (insightHeader && profit < exp && exp > 0) {
+        if (insightHeader.classList.contains('hidden')) {
+            SoundEngine.play('warning');
+            insightHeader.classList.add('pulse-critical');
+        }
+        insightHeader.classList.remove('hidden');
+        insightMessage.innerHTML = `Your expenses (<strong>${exp.toLocaleString()} SSP</strong>) are currently higher than your daily net profit (<strong>${profit.toLocaleString()} SSP</strong>). Your business is operating in a high-risk zone for this selected date.`;
+
+        // Dynamic advice based on situation
+        let advice = "Audit your maintenance and food costs immediately. Consider reducing small daily expenditures.";
+        if (unpaidToday > (rev / 2)) advice = "A high percentage of your revenue is tied up in UNPAID bills. Start collecting from your watchlist players to restore cash flow.";
+        else if (cnt < 5) advice = "Revenue is low due to poor client volume. Try offering limited-time voucher discounts to attract more players.";
+        else if (exp > (rev * 1.5)) advice = "CRITICAL: Expenses are 150% of revenue. Stop all non-essential business spending today.";
+
+        adviceText.textContent = advice;
+    } else if (insightHeader) {
+        insightHeader.classList.add('hidden');
     }
 }
 
@@ -1049,33 +1236,72 @@ function renderTransactions() {
     // Search filter
     const today = getLocalDateString();
     const dateFilter = document.getElementById('filterDate')?.value || today;
-    const searchTerm = document.getElementById('searchBox')?.value.toLowerCase() || '';
+    const searchInput = document.getElementById('search_filter_main');
+    const searchTerm = searchInput?.value.toLowerCase() || '';
+    const isDebtorHistory = searchInput?.dataset.isDebtorHistory === 'true';
 
-    // Filter all data - Use proper local date comparison
-    let combined = [
-        ...clients.filter(c => c.date && getLocalDateString(c.date) === dateFilter),
-        ...vouchers.filter(v => v.date && getLocalDateString(v.date) === dateFilter),
-        ...expenses.filter(e => e.date && getLocalDateString(e.date) === dateFilter)
-    ];
+    // Filter all data using optimized date checks
+    let combined = [];
 
-    // Search filter
+    // Push matching clients
+    for (let i = 0; i < clients.length; i++) {
+        const c = clients[i];
+        if (c && c.date) {
+            const dateMatch = getLocalDateString(c.date) === dateFilter;
+            // If viewing debtor history, ignore date filter for that specific client's name
+            // but only show the unpaid/borrowed records
+            const debtorMatch = isDebtorHistory &&
+                c.name.toLowerCase().includes(searchTerm) &&
+                (c.status === 'unpaid' || c.status === 'borrowed');
+
+            if (dateMatch || debtorMatch) {
+                combined.push(c);
+            }
+        }
+    }
+
+    // Push matching vouchers
+    for (let i = 0; i < vouchers.length; i++) {
+        const v = vouchers[i];
+        if (v && v.date && getLocalDateString(v.date) === dateFilter) {
+            combined.push(v);
+        }
+    }
+
+    // Push matching expenses
+    for (let i = 0; i < expenses.length; i++) {
+        const e = expenses[i];
+        if (e && e.date && getLocalDateString(e.date) === dateFilter) {
+            combined.push(e);
+        }
+    }
+
+    // Search filter optimization
     if (searchTerm) {
         combined = combined.filter(item => {
             const name = (item.name || item.clientName || "").toLowerCase();
             const reason = (item.reason || "").toLowerCase();
-            const vType = (item.voucherType || "").toLowerCase();
             const user = (item.username || "").toLowerCase();
-            const notes = (item.notes || "").toLowerCase();
+            const cat = (item.category || "").toLowerCase();
             const phone = (item.phoneType || "").toLowerCase();
-            const category = (item.category || "").toLowerCase();
+            const type = (item.type || "").toLowerCase();
+            const status = (item.status || (type === 'voucher' ? 'paid' : '')).toLowerCase();
+
+            const notes = (item.notes || "").toLowerCase();
+            const vType = (item.voucherType || "").toLowerCase();
+
+            // Special handling for dashboard shortcuts
+            if (searchTerm === 'unpaid' && (status === 'borrowed' || status === 'unpaid')) return true;
 
             return name.includes(searchTerm) ||
                 reason.includes(searchTerm) ||
-                vType.includes(searchTerm) ||
                 user.includes(searchTerm) ||
                 notes.includes(searchTerm) ||
+                vType.includes(searchTerm) ||
+                cat.includes(searchTerm) ||
                 phone.includes(searchTerm) ||
-                category.includes(searchTerm);
+                status.includes(searchTerm) ||
+                type.includes(searchTerm);
         });
     }
 
@@ -1086,14 +1312,16 @@ function renderTransactions() {
         return;
     }
 
-    combined.forEach(item => {
+    const fragment = document.createDocumentFragment();
+
+    combined.forEach((item, index) => {
         const div = document.createElement('div');
-        div.className = `list-item glass-card ${item.type} animate-fade-in`;
+        div.className = `list-item glass-card reveal-item ${item.type}`;
+        div.style.animationDelay = `${index * 0.05}s`;
 
         const isExpense = item.type === 'expense';
         const isVoucher = item.type === 'voucher';
 
-        // Safety check for date
         let dateStr = "Unknown";
         try { dateStr = new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (e) { }
 
@@ -1101,21 +1329,17 @@ function renderTransactions() {
         if (isExpense) {
             const expLabels = {
                 "lunch": "Food", "tea": "Tea", "maintenance": "Maintenance",
-                "transport": "Transport", "salary": "Salary", "other": "Other"
+                "transport": "Transport", "salary": "Salary / Advance", "other": "Other"
             };
             const catLabel = expLabels[item.category] || item.category || 'Expense';
-            title = catLabel.charAt(0).toUpperCase() + catLabel.slice(1);
-            if (item.personName) title += ` (${item.personName})`;
+            title = '💸 ' + (catLabel.charAt(0).toUpperCase() + catLabel.slice(1));
         }
         if (isVoucher) {
-            const labels = {
-                "1hr": "1 Hour", "2hr": "2 Hour", "day": "Full Day", "week": "Weekly", "month": "Monthly"
-            };
+            const labels = { "1hr": "1 Hour", "2hr": "2 Hour", "day": "Day" };
             const label = labels[item.voucherType] || item.voucherType || 'Voucher';
-            title = `🎫 ${label} (${item.username || '?'}) (${item.password || '?'})`;
+            title = `🎫 ${label} (${item.username || '?'})`;
         }
 
-        // Apply Highlight
         const highlight = (text) => {
             if (!searchTerm) return text;
             const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1123,55 +1347,49 @@ function renderTransactions() {
             return String(text).replace(regex, '<mark class="highlight">$1</mark>');
         };
 
-        const displayTitle = highlight(title);
-        const displayMeta = `
-            <span style="color: var(--text-main); font-weight: 500">${dateStr}</span> • ${item.addedBy || 'Admin'} 
-            ${isVoucher ? ' • Client: ' + highlight(item.clientName || 'Cash') : ''}
-            ${item.phoneType ? ' • 📱 ' + highlight(item.phoneType) : ''} 
-            ${item.notes ? ' • 📝 ' + highlight(item.notes) : ''}
-            ${isExpense && item.reason ? ' • 📝 ' + highlight(item.reason) : ''}
-            ${isVoucher ? ' • Pwd: ' + highlight(item.password || 'none') : ''}
-        `;
-
-        let icon = isExpense ? '💸' : (isVoucher ? '🎫' : '👤');
-        let typeLabel = isExpense ? 'EXPENSE' : (isVoucher ? 'VOUCHER' : 'CLIENT');
-
         div.innerHTML = `
             <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
                 <div style="font-size: 1.5rem; background: rgba(255,255,255,0.03); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid var(--glass-border);">
-                    ${icon}
+                    ${isExpense ? '💸' : (isVoucher ? '🎫' : '👤')}
                 </div>
-                <div class="item-main">
-                    <div class="item-title">${displayTitle}</div>
-                    <div class="item-meta" style="font-size: 0.8rem; color: var(--text-muted);">
-                        ${displayMeta}
+                <div>
+                    <div style="font-weight:700; font-size:1.1rem">${highlight(title)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        <span style="color: white; font-weight: 500">${dateStr}</span> • ${item.addedBy || 'Admin'}
+                        ${isVoucher ? ' • Client: ' + highlight(item.clientName || 'Cash') : ''}
+                        ${item.phoneType ? ' • 📱 ' + highlight(item.phoneType) : ''}
+                        ${item.notes ? ' • 📝 ' + highlight(item.notes) : ''}
+                        ${isExpense && item.reason ? ' • 📝 ' + highlight(item.reason) : ''}
+                        ${isVoucher ? ' • Pwd: ' + highlight(item.password || 'none') : ''}
                     </div>
                 </div>
             </div>
-            <div style="text-align: right; margin-left: 20px;">
-                <div style="font-family: 'Outfit'; font-weight: 800; font-size: 1.2rem; color: ${isExpense ? 'var(--danger)' : 'var(--accent)'}">
+            <div style="text-align: right;">
+                <div style="font-weight: 800; font-size: 1.2rem; color: ${isExpense ? 'var(--danger)' : 'var(--accent)'}">
                     ${isExpense ? '-' : '+'}${(item.amount || 0).toLocaleString()} SSP
                 </div>
-                <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px;">
-                    <span class="badge ${isExpense ? 'badge-unpaid' : (isVoucher ? 'badge-paid' : 'badge-' + (item.status || 'paid'))}">${item.status || typeLabel}</span>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
+                    <span class="badge ${isExpense ? 'badge-unpaid' : (isVoucher ? 'badge-paid' : 'badge-' + (item.status || 'paid'))}">${item.status || (isExpense ? 'EXPENSE' : (isVoucher ? 'VOUCHER' : 'CLIENT'))}</span>
                     ${!isExpense ? `
                         <button type="button" onclick="printTicket('${item.id}', '${item.type}')" class="btn" style="padding: 6px; background: rgba(14, 165, 233, 0.1); color: var(--info); border-radius: 8px;" title="Print Ticket">
                             <i data-lucide="printer" style="width: 14px"></i>
                         </button>
                     ` : ''}
-                    <button type="button" onclick="editItem('${item.id}', '${item.type}')" class="btn" style="padding: 6px; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 8px;" title="Edit">
+                    <button type="button" onclick="editItem('${item.id}', '${item.type}')" class="btn" style="padding: 6px; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 8px;">
                         <i data-lucide="edit-3" style="width: 14px"></i>
                     </button>
-                    <button type="button" onclick="deleteItem('${item.id}', '${item.type}')" class="btn" style="padding: 6px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px;" title="Delete">
+                    <button type="button" onclick="deleteItem('${item.id}', '${item.type}')" class="btn" style="padding: 6px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px;">
                         <i data-lucide="trash-2" style="width: 14px"></i>
                     </button>
                 </div>
             </div>
         `;
-        list.appendChild(div);
+        fragment.appendChild(div);
     });
 
-    lucide.createIcons();
+    list.appendChild(fragment);
+    // Targeted icon generation
+    lucide.createIcons({ elements: list.querySelectorAll('[data-lucide]') });
 }
 
 function renderVoucherHistory() {
@@ -1185,60 +1403,65 @@ function renderVoucherHistory() {
         .filter(v => getLocalDateString(v.date) === today)
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    const countEl = document.getElementById('voucherHistoryCount');
+    if (countEl) countEl.textContent = recentVouchers.length;
+
     if (recentVouchers.length === 0) {
         list.innerHTML = `<div class="text-center p-8 text-muted">No voucher sales today.</div>`;
         return;
     }
 
     list.innerHTML = '';
+    const fragment = document.createDocumentFragment();
 
-    recentVouchers.forEach(item => {
+    recentVouchers.forEach((item, index) => {
         const div = document.createElement('div');
-        div.className = `list-item glass-card voucher`;
+        div.className = `voucher-card-premium reveal-item`;
+        div.style.animationDelay = `${index * 0.05}s`;
 
         let dateStr = "Unknown";
         try {
             const d = new Date(item.date);
-            dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
-                d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            dateStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } catch (e) { }
 
-        const labels = {
-            "1hr": "1 Hour", "2hr": "2 Hour", "day": "Full Day", "week": "Weekly", "month": "Monthly"
-        };
+        const labels = { "1hr": "1 Hour", "2hr": "2 Hour", "day": "Day", "week": "Week", "month": "Month" };
         const label = labels[item.voucherType] || item.voucherType || 'Voucher';
 
         div.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
-                <div style="font-size: 1.5rem; background: rgba(255,255,255,0.03); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid var(--glass-border);">
-                    🎫
+            <div class="voucher-icon-box">
+                🎫
+            </div>
+            <div class="voucher-info-main">
+                <div class="voucher-title-row">
+                    <span class="voucher-type-label">${label}</span>
+                    <span class="voucher-user-badge">@${item.username || 'user'}</span>
                 </div>
-                <div class="item-main">
-                    <div class="item-title">${label} (${item.username || '?'})</div>
-                    <div class="item-meta" style="font-size: 0.8rem; color: var(--text-muted);">
-                        <span style="color: var(--text-main); font-weight: 500">${dateStr}</span> • Client: ${item.clientName || 'Cash Sale'}
-                        <br><span style="font-family: monospace; color: var(--primary);">Pwd: ${item.password || 'none'}</span>
-                    </div>
+                <div class="voucher-meta-text">
+                    <span>🕒 ${dateStr}</span>
+                    <span>•</span>
+                    <span>👤 ${item.clientName || 'Cash Sale'}</span>
+                    <span>•</span>
+                    <span>🔑 <span class="voucher-password-highlight">${item.password || 'N/A'}</span></span>
                 </div>
             </div>
-            <div style="text-align: right; margin-left: 20px;">
-                <div style="font-family: 'Outfit'; font-weight: 800; font-size: 1.2rem; color: var(--accent)">
-                    +${(item.amount || 0).toLocaleString()} SSP
-                </div>
-                <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px;">
-                    <button type="button" onclick="printTicket('${item.id}', 'voucher')" class="btn" style="padding: 6px; background: rgba(14, 165, 233, 0.1); color: var(--info); border-radius: 8px;" title="Print Ticket">
-                        <i data-lucide="printer" style="width: 14px"></i>
-                    </button>
-                    <button type="button" onclick="deleteItem('${item.id}', 'voucher')" class="btn" style="padding: 6px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px;" title="Delete">
-                        <i data-lucide="trash-2" style="width: 14px"></i>
-                    </button>
+            <div class="voucher-action-group">
+                <span class="voucher-price-tag">+${(item.amount || 0).toLocaleString()} SSP</span>
+                <div style="display:flex; justify-content:flex-end; gap:8px">
+                  <button type="button" onclick="printTicket('${item.id}', 'voucher')" class="btn" style="padding:8px; background:rgba(14,165,233,0.15); color:var(--info); border-radius:10px" title="Print Ticket">
+                      <i data-lucide="printer" style="width:16px"></i>
+                  </button>
+                  <button type="button" onclick="deleteItem('${item.id}', 'voucher')" class="btn" style="padding: 8px; background: rgba(239, 68, 68, 0.15); color: var(--danger); border-radius: 10px;" title="Delete Record">
+                      <i data-lucide="trash-2" style="width: 16px"></i>
+                  </button>
                 </div>
             </div>
         `;
-        list.appendChild(div);
+        fragment.appendChild(div);
     });
 
-    lucide.createIcons();
+    list.appendChild(fragment);
+    lucide.createIcons({ elements: list.querySelectorAll('[data-lucide]') });
 }
 
 function renderExpenseHistory() {
@@ -1252,16 +1475,21 @@ function renderExpenseHistory() {
         .filter(e => getLocalDateString(e.date) === today)
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    const countEl = document.getElementById('expenseHistoryCount');
+    if (countEl) countEl.textContent = recentExpenses.length;
+
     if (recentExpenses.length === 0) {
         list.innerHTML = `<div class="text-center p-8 text-muted">No expenses recorded today.</div>`;
         return;
     }
 
     list.innerHTML = '';
+    const fragment = document.createDocumentFragment();
 
-    recentExpenses.forEach(item => {
+    recentExpenses.forEach((item, index) => {
         const div = document.createElement('div');
-        div.className = `list-item glass-card expense`;
+        div.className = `list-item glass-card reveal-item expense`;
+        div.style.animationDelay = `${index * 0.05}s`;
 
         let dateStr = "Unknown";
         try {
@@ -1270,43 +1498,33 @@ function renderExpenseHistory() {
                 d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } catch (e) { }
 
-        const expLabels = {
-            "lunch": "Food", "tea": "Tea", "maintenance": "Maintenance",
-            "transport": "Transport", "salary": "Salary", "other": "Other"
-        };
-        const catLabel = expLabels[item.category] || item.category || 'Expense';
-        const displayTitle = catLabel.charAt(0).toUpperCase() + catLabel.slice(1);
-
         div.innerHTML = `
             <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
                 <div style="font-size: 1.5rem; background: rgba(239, 68, 68, 0.1); width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid var(--glass-border); color: var(--danger);">
                     💸
                 </div>
-                <div class="item-main">
-                    <div class="item-title" style="text-transform: capitalize;">${displayTitle} (${item.personName || '?'})</div>
-                    <div class="item-meta" style="font-size: 0.8rem; color: var(--text-muted);">
-                        <span style="color: var(--text-main); font-weight: 500">${dateStr}</span> • ${item.reason || 'No description'}
-                    </div>
+                <div>
+                    <div style="font-weight:700">${(item.category || 'Expense').toUpperCase()} (${item.personName || '?'})</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">${dateStr} • ${item.reason || 'No reason'}</div>
                 </div>
             </div>
-            <div style="text-align: right; margin-left: 20px;">
-                <div style="font-family: 'Outfit'; font-weight: 800; font-size: 1.2rem; color: var(--danger)">
-                    -${(item.amount || 0).toLocaleString()} SSP
-                </div>
-                <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 4px;">
-                    <button type="button" onclick="editItem('${item.id}', 'expense')" class="btn" style="padding: 6px; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 8px;" title="Edit">
+            <div style="text-align: right;">
+                <div style="font-weight: 800; font-size: 1.2rem; color: var(--danger)">-${(item.amount || 0).toLocaleString()} SSP</div>
+                <div style="display:flex; justify-content:flex-end; gap:8px">
+                    <button type="button" onclick="editItem('${item.id}', 'expense')" class="btn" style="padding: 6px; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 8px;">
                         <i data-lucide="edit-3" style="width: 14px"></i>
                     </button>
-                    <button type="button" onclick="deleteItem('${item.id}', 'expense')" class="btn" style="padding: 6px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px;" title="Delete">
+                    <button type="button" onclick="deleteItem('${item.id}', 'expense')" class="btn" style="padding: 6px; background: rgba(239, 68, 68, 0.1); color: var(--danger); border-radius: 8px;">
                         <i data-lucide="trash-2" style="width: 14px"></i>
                     </button>
                 </div>
             </div>
         `;
-        list.appendChild(div);
+        fragment.appendChild(div);
     });
 
-    lucide.createIcons();
+    list.appendChild(fragment);
+    lucide.createIcons({ elements: list.querySelectorAll('[data-lucide]') });
 }
 
 function deleteItem(id, type) {
@@ -1424,11 +1642,11 @@ function editItem(id, type) {
         return;
     }
 
-    document.getElementById('editModalTitle').textContent = `Edit ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    document.getElementById('editModalTitle').textContent = `Edit ${type.charAt(0).toUpperCase() + type.slice(1)} `;
 
     if (type === 'client') {
         fieldsContainer.innerHTML = `
-            <div class="form-group">
+        <div class="form-group">
                 <label>Transaction Date</label>
                 <input type="date" name="date" value="${item.date ? getLocalDateString(item.date) : getLocalDateString()}" required>
             </div>
@@ -1444,17 +1662,17 @@ function editItem(id, type) {
                 <div class="form-group">
                     <label>Duration</label>
                     <select name="duration">
-                        <option value="1hour" ${item.duration === '1hour' ? 'selected' : ''}>1 Hour</option>
-                        <option value="2hours" ${item.duration === '2hours' ? 'selected' : ''}>2 Hours</option>
-                        <option value="daily" ${item.duration === 'daily' ? 'selected' : ''}>Full Day</option>
-                        <option value="weekly" ${item.duration === 'weekly' ? 'selected' : ''}>Weekly</option>
-                        <option value="monthly" ${item.duration === 'monthly' ? 'selected' : ''}>Monthly</option>
+                        <option value="1hr" ${item.duration === '1hr' ? 'selected' : ''}>1 Hour</option>
+                        <option value="2hr" ${item.duration === '2hr' ? 'selected' : ''}>2 Hours</option>
+                        <option value="day" ${item.duration === 'day' ? 'selected' : ''}>Full Day</option>
+                        <option value="week" ${item.duration === 'week' ? 'selected' : ''}>Weekly</option>
+                        <option value="month" ${item.duration === 'month' ? 'selected' : ''}>Monthly</option>
                         <option value="custom" ${item.duration === 'custom' ? 'selected' : ''}>Custom</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Amount (SSP)</label>
-                    <input type="number" name="amount" value="${item.amount}" required>
+                    <input type="number" name="amount" value="${parseInt(item.amount) || 0}" required>
                 </div>
             </div>
             <div class="form-group">
@@ -1469,10 +1687,10 @@ function editItem(id, type) {
                 <label>Notes</label>
                 <textarea name="notes">${item.notes || ''}</textarea>
             </div>
-        `;
+    `;
     } else if (type === 'voucher') {
         fieldsContainer.innerHTML = `
-            <div class="form-group">
+        <div class="form-group">
                 <label>Transaction Date</label>
                 <input type="date" name="date" value="${item.date ? getLocalDateString(item.date) : getLocalDateString()}" required>
             </div>
@@ -1506,11 +1724,11 @@ function editItem(id, type) {
                     <input type="number" name="amount" value="${item.amount}" required>
                 </div>
             </div>
-        `;
+    `;
     }
     else if (type === 'expense') {
         fieldsContainer.innerHTML = `
-            <div class="form-group">
+        <div class="form-group">
                 <label>Transaction Date</label>
                 <input type="date" name="date" value="${item.date ? getLocalDateString(item.date) : getLocalDateString()}" required>
             </div>
@@ -1537,7 +1755,7 @@ function editItem(id, type) {
                 <label>Person Responsible</label>
                 <input type="text" name="personName" value="${item.personName || ''}">
             </div>
-        `;
+    `;
     }
 
     modal.classList.remove('hidden');
@@ -1618,6 +1836,7 @@ function switchTab(tabId) {
     }
 
     currentTab = tabId;
+    SoundEngine.play('notify'); // Tactile OS feedback
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`${tabId}Tab`).classList.remove('hidden');
 
@@ -1645,15 +1864,15 @@ function showNotification(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `glass-card notification ${type} animate-slide-in`;
     toast.style.cssText = `
-        background: ${type === 'error' ? 'var(--danger)' : 'var(--accent)'};
-        color: white;
-        border: none;
-        padding: 16px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        pointer-events: auto;
+    background: ${type === 'error' ? 'var(--danger)' : 'var(--accent)'};
+    color: white;
+    border: none;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: auto;
     `;
 
     const icon = type === 'error' ? '🚫' : '✅';
@@ -1675,20 +1894,20 @@ function showUndoNotification(message) {
     toast.id = 'undoToast';
     toast.className = 'glass-card notification info';
     toast.style.cssText = `
-        position: fixed;
-        bottom: 30px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 9999;
-        background: #1e293b;
-        color: white;
-        border: 1px solid var(--primary);
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        padding: 12px 24px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-        animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: #1e293b;
+    color: white;
+    border: 1px solid var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 24px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     `;
 
     toast.innerHTML = `
@@ -1761,7 +1980,7 @@ function loadHistory() {
         const card = document.createElement('div');
         card.className = 'glass-card mb-4';
         card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
                 <div>
                     <h3 style="margin: 0">${new Date(report.date).toLocaleDateString()}</h3>
                     <small class="text-muted">Saved by: ${report.savedBy}</small>
@@ -1776,21 +1995,25 @@ function loadHistory() {
                     </button>
                 </div>
             </div>
-            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
-                <div class="stat-item">
-                    <span class="stat-value" style="font-size: 1.2rem">${report.summary.totalClients}</span>
-                    <span class="stat-label">Clients</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value" style="font-size: 1.2rem; color: var(--accent)">${report.summary.revenue.toLocaleString()}</span>
-                    <span class="stat-label">Revenue</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value" style="font-size: 1.2rem; color: var(--danger)">${report.summary.expenses.toLocaleString()}</span>
-                    <span class="stat-label">Expenses</span>
-                </div>
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 0;">
+            <div class="stat-item">
+                <span class="stat-value" style="font-size: 1.2rem">${report.summary.totalClients}</span>
+                <span class="stat-label">Clients</span>
             </div>
-        `;
+            <div class="stat-item">
+                <span class="stat-value" style="font-size: 1.2rem; color: var(--accent)">${report.summary.revenue.toLocaleString()}</span>
+                <span class="stat-label">Revenue</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="font-size: 1.2rem; color: var(--warning)">${(report.summary.unpaid || 0).toLocaleString()}</span>
+                <span class="stat-label">Unpaid</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" style="font-size: 1.2rem; color: var(--danger)">${report.summary.expenses.toLocaleString()}</span>
+                <span class="stat-label">Expenses</span>
+            </div>
+        </div>
+    `;
         list.appendChild(card);
     });
 }
@@ -1803,9 +2026,9 @@ function printSingleReport(dateStr) {
     }
 
     // Modern Header Setup
-    document.getElementById('printSubtitle').textContent = `OFFICIAL DAILY ARCHIVE - ${new Date(report.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}`;
+    document.getElementById('printSubtitle').textContent = `OFFICIAL DAILY ARCHIVE - ${new Date(report.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()} `;
     document.getElementById('printMeta').textContent = `Authorized By: ${report.savedBy}
-    Document ID: ARCH-${report.date.replace(/-/g, '')}`;
+    Document ID: ARCH - ${report.date.replace(/-/g, '')} `;
 
     const targetDate = report.date;
     const filteredClients = clients.filter(c => c && c.date && getLocalDateString(c.date) === targetDate);
@@ -1849,7 +2072,7 @@ function printSingleReport(dateStr) {
     const createTable = (title, data, headers, rowRenderer) => {
         if (data.length === 0) return '';
         return `
-            <div style="margin-top: 35px;">
+        <div style="margin-top: 35px;">
                 <h3 style="margin-bottom: 12px; color: #0f172a; font-size: 14px; display: flex; align-items: center; gap: 10px;">
                     <span style="width: 4px; height: 16px; background: #6366f1; display: inline-block; border-radius: 2px;"></span>
                     ${title}
@@ -1878,7 +2101,7 @@ function printSingleReport(dateStr) {
             <td style="padding: 10px; font-size: 10px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}"><span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${item.status.toUpperCase()}</span></td>
             <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
         </tr>
-    `);
+        `);
 
     container.innerHTML += createTable('VOUCHER SALES', filteredVouchers, [
         { text: 'Time' }, { text: 'Type' }, { text: 'Username' }, { text: 'Password' }, { text: 'Amount', align: 'right' }
@@ -1890,7 +2113,7 @@ function printSingleReport(dateStr) {
             <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.password}</td>
             <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
         </tr>
-    `);
+        `);
 
     container.innerHTML += createTable('EXPENSES', filteredExpenses, [
         { text: 'Time' }, { text: 'Category' }, { text: 'Reason' }, { text: 'Amount', align: 'right' }
@@ -1901,7 +2124,7 @@ function printSingleReport(dateStr) {
             <td style="padding: 10px; font-size: 11px; color: #64748b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.reason}</td>
             <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; color: #ef4444; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
         </tr>
-    `);
+        `);
 
     executePrint('Daily Report - ' + targetDate);
 }
@@ -1922,7 +2145,7 @@ function printTicket(id, type) {
     // Prepare Ticket HTML (Modern, White Background, Professional)
     const ticketHTML = `
         <div style="padding: 2.5cm; font-family: 'Outfit', sans-serif; color: #0f172a; background: white; width: 210mm; min-height: 297mm; box-sizing: border-box; display: flex; flex-direction: column;">
-            <!-- Header -->
+            <!--Header -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
                 <div style="display: flex; align-items: center; gap: 20px;">
                     <img src="assets/img/sama-logo.png?v=3.5" alt="Logo" style="height: 80px; width: 80px; object-fit: cover; border-radius: 50%; border: 3px solid #6366f1;">
@@ -1983,32 +2206,32 @@ function printTicket(id, type) {
                 </div>
             </div>
 
-            <!-- Footer / QR Placeholder Area -->
-            <div style="margin-top: 60px; display: flex; justify-content: space-between; align-items: flex-end;">
-                <div style="font-size: 11px; color: #94a3b8; line-height: 1.6;">
-                    <strong>Instructions:</strong><br>
+            <!--Footer / QR Placeholder Area-- >
+        <div style="margin-top: 60px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="font-size: 11px; color: #94a3b8; line-height: 1.6;">
+                <strong>Instructions:</strong><br>
                     1. Connect to "Sama Wi-Fi" SSID<br>
-                    2. Wait for login portal to appear<br>
-                    3. Enter credentials provided above<br>
-                    <br>
-                    <em>Generated by ${item.addedBy || 'System'} on ${new Date(item.date).toLocaleString()}</em>
-                </div>
-                <div style="text-align: center;">
-                   <div style="width: 120px; height: 120px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; display: flex; align-items: center; justify-content: center; background: #fff;">
-                        <div style="text-align: center;">
-                            <span style="font-size: 8px; color: #94a3b8;">SECURE QR</span><br>
-                            <span style="font-size: 24px;">🔒</span>
+                        2. Wait for login portal to appear<br>
+                            3. Enter credentials provided above<br>
+                                <br>
+                                    <em>Generated by ${item.addedBy || 'System'} on ${new Date(item.date).toLocaleString()}</em>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="width: 120px; height: 120px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; display: flex; align-items: center; justify-content: center; background: #fff;">
+                                        <div style="text-align: center;">
+                                            <span style="font-size: 8px; color: #94a3b8;">SECURE QR</span><br>
+                                                <span style="font-size: 24px;">🔒</span>
+                                        </div>
+                                    </div>
+                                    <div style="font-size: 9px; color: #94a3b8; margin-top: 8px; font-weight: 600;">SCAN TO CONNECT</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center; color: #cbd5e1; font-size: 10px; letter-spacing: 3px;">
+                                SAMA PROFESSIONAL SERVICES • OFFICIAL ACCESS TOKEN
+                            </div>
                         </div>
-                   </div>
-                   <div style="font-size: 9px; color: #94a3b8; margin-top: 8px; font-weight: 600;">SCAN TO CONNECT</div>
-                </div>
-            </div>
-            
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: center; color: #cbd5e1; font-size: 10px; letter-spacing: 3px;">
-                SAMA PROFESSIONAL SERVICES • OFFICIAL ACCESS TOKEN
-            </div>
-        </div>
-    `;
+                        `;
 
     executePrint('Ticket - ' + (item.username || item.id), ticketHTML);
 }
@@ -2031,34 +2254,34 @@ function executePrint(title, customHTML = null) {
     const baseHref = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
 
     printWindow.document.write(`
-        <html>
-            <head>
-                <title>${title}</title>
-                <base href="${baseHref}">
-                <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-                <style>
-                    body { margin: 0; padding: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; }
-                    @media print {
-                        body { background: white; }
-                        .no-print { display: none; }
-                        @page { margin: 0; size: A4; }
+                        <html>
+                            <head>
+                                <title>${title}</title>
+                                <base href="${baseHref}">
+                                    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+                                        <style>
+                                            body {margin: 0; padding: 0; background: #f1f5f9; -webkit-print-color-adjust: exact; }
+                                            @media print {
+                                                body {background: white; }
+                                            .no-print {display: none; }
+                                            @page {margin: 0; size: A4; }
                     }
-                    * { box-sizing: border-box; }
-                </style>
-            </head>
-            <body>
-                ${content}
-                <script>
-                    window.onload = function() {
-                        setTimeout(() => {
-                            window.print();
-                            window.close();
-                        }, 500);
+                                            * {box - sizing: border-box; }
+                                        </style>
+                                    </head>
+                                    <body>
+                                        ${content}
+                                        <script>
+                                            window.onload = function() {
+                                                setTimeout(() => {
+                                                    window.print();
+                                                    window.close();
+                                                }, 500);
                     };
-                </script>
-            </body>
-        </html>
-    `);
+                                        </script>
+                                    </body>
+                                </html>
+                                `);
 
     printWindow.document.close();
 }
@@ -2091,6 +2314,7 @@ function saveReport(targetDate = getLocalDateString(), isAuto = false) {
     const revenue = filteredClients.filter(c => c.status === 'paid').reduce((sum, c) => sum + (parseInt(c.amount) || 0), 0) +
         filteredVouchers.reduce((sum, v) => sum + (parseInt(v.amount) || 0), 0);
     const exp = filteredExpenses.reduce((sum, e) => sum + (parseInt(e.amount) || 0), 0);
+    const unpaid = filteredClients.filter(c => c.status === 'unpaid' || c.status === 'borrowed').reduce((sum, c) => sum + (parseInt(c.amount) || 0), 0);
 
     const report = {
         date: dateToSave,
@@ -2099,7 +2323,8 @@ function saveReport(targetDate = getLocalDateString(), isAuto = false) {
             totalClients: filteredClients.length + filteredVouchers.length,
             revenue: revenue,
             expenses: exp,
-            netProfit: revenue - exp
+            netProfit: revenue - exp,
+            unpaid: unpaid
         }
     };
 
@@ -2300,49 +2525,54 @@ function generateReport() {
     const filteredVouchers = vouchers.filter(v => new Date(v.date) >= startDate);
     const filteredExpenses = expenses.filter(e => new Date(e.date) >= startDate);
 
-    const rev = filteredClients.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0) +
-        filteredVouchers.reduce((s, v) => s + v.amount, 0);
-    const exp = filteredExpenses.reduce((s, e) => s + e.amount, 0);
+    const rev = filteredClients.filter(c => c.status === 'paid').reduce((s, c) => s + (parseInt(c.amount) || 0), 0) +
+        filteredVouchers.reduce((s, v) => s + (parseInt(v.amount) || 0), 0);
+    const exp = filteredExpenses.reduce((s, e) => s + (parseInt(e.amount) || 0), 0);
+    const unpaid = filteredClients.filter(c => c.status === 'unpaid' || c.status === 'borrowed').reduce((s, c) => s + (parseInt(c.amount) || 0), 0);
     const profit = rev - exp;
-    const totalStock = Object.values(voucherStock).reduce((a, b) => a + b, 0);
+    const totalStock = Object.values(voucherStock).reduce((a, b) => a + (parseInt(b) || 0), 0);
 
     preview.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: start;">
-            <div>
-                <h4 class="text-gradient" style="margin-bottom: 5px;">${period.toUpperCase()} PERFORMANCE</h4>
-                <p style="font-size: 0.8rem; color: var(--text-muted)">From: ${startDate.toLocaleDateString()} To: ${now.toLocaleDateString()}</p>
-            </div>
-            <button onclick="printTheReport('${period}')" class="btn" style="background: var(--info); color: white;">🖨️ Print Document</button>
-        </div>
-        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 15px; margin-bottom: 10px;">
-            <div class="stat-item">
-                <span class="stat-value" style="font-size: 1.1rem">${filteredClients.length}</span>
-                <span class="stat-label">Total Clients</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" style="font-size: 1.1rem">${filteredVouchers.length}</span>
-                <span class="stat-label">Voucher Sales</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" style="font-size: 1.1rem; color: var(--warning)">${totalStock}</span>
-                <span class="stat-label">Remain Stock</span>
-            </div>
-        </div>
-        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
-            <div class="stat-item">
-                <span class="stat-value" style="font-size: 1.1rem; color: var(--accent)">${rev.toLocaleString()} SSP</span>
-                <span class="stat-label">Total Revenue</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" style="font-size: 1.1rem; color: var(--danger)">${exp.toLocaleString()} SSP</span>
-                <span class="stat-label">Total Expenses</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" style="font-size: 1.1rem; color: white">${profit.toLocaleString()} SSP</span>
-                <span class="stat-label">Net Profit</span>
-            </div>
-        </div>
-    `;
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div>
+                                        <h4 class="text-gradient" style="margin-bottom: 5px;">${period.toUpperCase()} PERFORMANCE</h4>
+                                        <p style="font-size: 0.8rem; color: var(--text-muted)">From: ${startDate.toLocaleDateString()} To: ${now.toLocaleDateString()}</p>
+                                    </div>
+                                    <button onclick="printTheReport('${period}')" class="btn" style="background: var(--info); color: white;">🖨️ Print Document</button>
+                                </div>
+                                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 15px; margin-bottom: 10px;">
+                                    <div class="stat-item">
+                                        <span class="stat-value" style="font-size: 1.1rem">${filteredClients.length}</span>
+                                        <span class="stat-label">Total Clients</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value" style="font-size: 1.1rem">${filteredVouchers.length}</span>
+                                        <span class="stat-label">Voucher Sales</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value" style="font-size: 1.1rem; color: var(--warning)">${totalStock}</span>
+                                        <span class="stat-label">Remain Stock</span>
+                                    </div>
+                                </div>
+                                <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 0;">
+                                    <div class="stat-item">
+                                        <span class="stat-value" style="font-size: 1.1rem; color: var(--accent)">${rev.toLocaleString()} SSP</span>
+                                        <span class="stat-label">Total Revenue</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value" style="font-size: 1.1rem; color: var(--warning)">${unpaid.toLocaleString()} SSP</span>
+                                        <span class="stat-label">Unpaid Amount</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value" style="font-size: 1.1rem; color: var(--danger)">${exp.toLocaleString()} SSP</span>
+                                        <span class="stat-label">Total Expenses</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-value" style="font-size: 1.1rem; color: white">${profit.toLocaleString()} SSP</span>
+                                        <span class="stat-label">Net Profit</span>
+                                    </div>
+                                </div>
+                                `;
 }
 
 function printTheReport(period) {
@@ -2356,10 +2586,10 @@ function printTheReport(period) {
     const filteredVouchers = vouchers.filter(v => getLocalDateString(v.date) >= getLocalDateString(startDate)).map(v => ({ ...v, type: 'voucher' }));
     const filteredExpenses = expenses.filter(e => getLocalDateString(e.date) >= getLocalDateString(startDate)).map(e => ({ ...e, type: 'expense' }));
 
-    const clientRev = filteredClients.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
-    const voucherRev = filteredVouchers.reduce((s, v) => s + v.amount, 0);
+    const clientRev = filteredClients.filter(c => c.status === 'paid').reduce((s, c) => s + (parseInt(c.amount) || 0), 0);
+    const voucherRev = filteredVouchers.reduce((s, v) => s + (parseInt(v.amount) || 0), 0);
     const rev = clientRev + voucherRev;
-    const exp = filteredExpenses.reduce((s, e) => s + e.amount, 0);
+    const exp = filteredExpenses.reduce((s, e) => s + (parseInt(e.amount) || 0), 0);
     const profit = rev - exp;
 
     const borrowedCount = filteredClients.filter(c => c.status === 'borrowed').length;
@@ -2370,36 +2600,36 @@ function printTheReport(period) {
     // Modern Header Setup
     document.getElementById('printSubtitle').textContent = `${period.toUpperCase()} PERFORMANCE AUDIT`;
     document.getElementById('printMeta').textContent = `Audit Period: ${startDate.toLocaleDateString()} - ${now.toLocaleDateString()}
-    Authorized By: ${employeeName}
-    Document ID: AUD-${getLocalDateString().replace(/-/g, '')}`;
+                                Authorized By: ${employeeName}
+                                Document ID: AUD-${getLocalDateString().replace(/-/g, '')}`;
 
     // Modern Dashboard Cards
     document.getElementById('printStats').innerHTML = `
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; text-align: center;">
-            <div style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Sessions</div>
-            <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${filteredClients.length}</div>
-        </div>
-        <div style="background: #f0fdfa; border: 1px solid #ccfbf1; padding: 20px; border-radius: 12px; text-align: center;">
-            <div style="color: #0f766e; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Rev (SSP)</div>
-            <div style="font-size: 20px; font-weight: 800; color: #0d9488;">${rev.toLocaleString()}</div>
-        </div>
-        <div style="background: #fff7ed; border: 1px solid #ffedd5; padding: 20px; border-radius: 12px; text-align: center;">
-            <div style="color: #c2410c; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Exp (SSP)</div>
-            <div style="font-size: 20px; font-weight: 800; color: #ea580c;">${exp.toLocaleString()}</div>
-        </div>
-        <div style="background: #6366f1; border: 1px solid #4f46e5; padding: 20px; border-radius: 12px; text-align: center; color: white;">
-            <div style="color: rgba(255,255,255,0.8); font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Profit (SSP)</div>
-            <div style="font-size: 20px; font-weight: 800;">${profit.toLocaleString()}</div>
-        </div>
-        <div style="background: #fffbeb; border: 1px solid #fef3c7; padding: 20px; border-radius: 12px; text-align: center;">
-            <div style="color: #b45309; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Borrowed</div>
-            <div style="font-size: 20px; font-weight: 800; color: #d97706;">${borrowedCount}</div>
-        </div>
-        <div style="background: #fff1f2; border: 1px solid #ffe4e6; padding: 20px; border-radius: 12px; text-align: center;">
-            <div style="color: #e11d48; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Unpaid</div>
-            <div style="font-size: 20px; font-weight: 800; color: #be123c;">${unpaidCount}</div>
-        </div>
-    `;
+                                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; text-align: center;">
+                                    <div style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Sessions</div>
+                                    <div style="font-size: 20px; font-weight: 800; color: #0f172a;">${filteredClients.length}</div>
+                                </div>
+                                <div style="background: #f0fdfa; border: 1px solid #ccfbf1; padding: 20px; border-radius: 12px; text-align: center;">
+                                    <div style="color: #0f766e; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Rev (SSP)</div>
+                                    <div style="font-size: 20px; font-weight: 800; color: #0d9488;">${rev.toLocaleString()}</div>
+                                </div>
+                                <div style="background: #fff7ed; border: 1px solid #ffedd5; padding: 20px; border-radius: 12px; text-align: center;">
+                                    <div style="color: #c2410c; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Exp (SSP)</div>
+                                    <div style="font-size: 20px; font-weight: 800; color: #ea580c;">${exp.toLocaleString()}</div>
+                                </div>
+                                <div style="background: #6366f1; border: 1px solid #4f46e5; padding: 20px; border-radius: 12px; text-align: center; color: white;">
+                                    <div style="color: rgba(255,255,255,0.8); font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Profit (SSP)</div>
+                                    <div style="font-size: 20px; font-weight: 800;">${profit.toLocaleString()}</div>
+                                </div>
+                                <div style="background: #fffbeb; border: 1px solid #fef3c7; padding: 20px; border-radius: 12px; text-align: center;">
+                                    <div style="color: #b45309; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Borrowed</div>
+                                    <div style="font-size: 20px; font-weight: 800; color: #d97706;">${borrowedCount}</div>
+                                </div>
+                                <div style="background: #fff1f2; border: 1px solid #ffe4e6; padding: 20px; border-radius: 12px; text-align: center;">
+                                    <div style="color: #e11d48; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Unpaid</div>
+                                    <div style="font-size: 20px; font-weight: 800; color: #be123c;">${unpaidCount}</div>
+                                </div>
+                                `;
 
     const container = document.getElementById('printTableContainer');
     container.innerHTML = '';
@@ -2407,59 +2637,59 @@ function printTheReport(period) {
     const createTable = (title, data, headers, rowRenderer) => {
         if (data.length === 0) return '';
         return `
-            <div style="margin-top: 35px;">
-                <h3 style="margin-bottom: 12px; color: #0f172a; font-size: 14px; display: flex; align-items: center; gap: 10px;">
-                    <span style="width: 4px; height: 16px; background: #6366f1; display: inline-block; border-radius: 2px;"></span>
-                    ${title}
-                </h3>
-                <table style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-                    <thead>
-                        <tr style="background: #f8fafc;">
-                            ${headers.map(h => `<th style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: ${h.align || 'left'}; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700;">${h.text}</th>`).join('')}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.map((item, idx) => rowRenderer(item, idx === data.length - 1)).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+                                <div style="margin-top: 35px;">
+                                    <h3 style="margin-bottom: 12px; color: #0f172a; font-size: 14px; display: flex; align-items: center; gap: 10px;">
+                                        <span style="width: 4px; height: 16px; background: #6366f1; display: inline-block; border-radius: 2px;"></span>
+                                        ${title}
+                                    </h3>
+                                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                                        <thead>
+                                            <tr style="background: #f8fafc;">
+                                                ${headers.map(h => `<th style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: ${h.align || 'left'}; font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700;">${h.text}</th>`).join('')}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${data.map((item, idx) => rowRenderer(item, idx === data.length - 1)).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                `;
     };
 
     container.innerHTML += createTable('CLIENT SESSIONS', filteredClients, [
         { text: 'Date' }, { text: 'Name' }, { text: 'Phone' }, { text: 'Status' }, { text: 'Amount', align: 'right' }
     ], (item, isLast) => `
-        <tr style="${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">
-            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
-            <td style="padding: 10px; font-size: 11px; font-weight: 600; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.name}</td>
-            <td style="padding: 10px; font-size: 11px; color: #64748b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.phoneType}</td>
-            <td style="padding: 10px; font-size: 10px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}"><span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${item.status.toUpperCase()}</span></td>
-            <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
-        </tr>
-    `);
+                                <tr style="${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">
+                                    <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
+                                    <td style="padding: 10px; font-size: 11px; font-weight: 600; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.name}</td>
+                                    <td style="padding: 10px; font-size: 11px; color: #64748b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.phoneType}</td>
+                                    <td style="padding: 10px; font-size: 10px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}"><span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-weight: 600;">${item.status.toUpperCase()}</span></td>
+                                    <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
+                                </tr>
+                                `);
 
     container.innerHTML += createTable('VOUCHER SALES', filteredVouchers, [
         { text: 'Date' }, { text: 'Type' }, { text: 'Username' }, { text: 'Password' }, { text: 'Amount', align: 'right' }
     ], (item, isLast) => `
-        <tr>
-            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
-            <td style="padding: 10px; font-size: 11px; font-weight: 600; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.voucherType.toUpperCase()}</td>
-            <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.username}</td>
-            <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.password}</td>
-            <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
-        </tr>
-    `);
+                                <tr>
+                                    <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
+                                    <td style="padding: 10px; font-size: 11px; font-weight: 600; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.voucherType.toUpperCase()}</td>
+                                    <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.username}</td>
+                                    <td style="padding: 10px; font-size: 11px; color: #6366f1; font-family: monospace; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.password}</td>
+                                    <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
+                                </tr>
+                                `);
 
     container.innerHTML += createTable('EXPENSES', filteredExpenses, [
         { text: 'Date' }, { text: 'Category' }, { text: 'Reason' }, { text: 'Amount', align: 'right' }
     ], (item, isLast) => `
-        <tr>
-            <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
-            <td style="padding: 10px; font-size: 11px; font-weight: 600; color: #991b1b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.category.toUpperCase()}</td>
-            <td style="padding: 10px; font-size: 11px; color: #64748b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.reason}</td>
-            <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; color: #ef4444; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
-        </tr>
-    `);
+                                <tr>
+                                    <td style="padding: 10px; font-size: 11px; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${new Date(item.date).toLocaleDateString()}</td>
+                                    <td style="padding: 10px; font-size: 11px; font-weight: 600; color: #991b1b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.category.toUpperCase()}</td>
+                                    <td style="padding: 10px; font-size: 11px; color: #64748b; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.reason}</td>
+                                    <td style="padding: 10px; text-align: right; font-size: 11px; font-weight: 700; color: #ef4444; ${isLast ? '' : 'border-bottom: 1px solid #f1f5f9;'}">${item.amount.toLocaleString()}</td>
+                                </tr>
+                                `);
 
     executePrint('Business Report - ' + period);
 }
@@ -2523,4 +2753,170 @@ async function forceSync() {
         showNotification('No server updates. Ensuring cloud is current...', 'info');
         saveData();
     }
+}
+
+function renderDebtorsList() {
+    const tabContainer = document.getElementById('debtorsTab');
+
+    // Aggregate totals by client name
+    const debtorMap = new Map();
+
+    clients.forEach(c => {
+        if (!c || !c.name) return;
+        if (c.status === 'unpaid' || c.status === 'borrowed') {
+            const name = c.name.trim().toLowerCase();
+            const displayName = c.name.trim();
+            const amount = parseInt(c.amount) || 0;
+
+            if (debtorMap.has(name)) {
+                debtorMap.get(name).total += amount;
+                debtorMap.get(name).transactions++;
+            } else {
+                debtorMap.set(name, {
+                    name: displayName,
+                    total: amount,
+                    transactions: 1
+                });
+            }
+        }
+    });
+
+    // Threshold for "much amount" - 5,000 SSP
+    const threshold = 5000;
+    const allDebtors = Array.from(debtorMap.values()).sort((a, b) => b.total - a.total);
+
+    // Full Tab View (All Debtors)
+    if (tabContainer) {
+        if (allDebtors.length === 0) {
+            tabContainer.innerHTML = `
+                <div class="glass-card text-center" style="padding: 100px 40px;">
+                    <div style="font-size: 4rem; margin-bottom: 24px; animation: bounce 2s infinite;">🎉</div>
+                    <h2 style="font-size: 2rem; background: linear-gradient(135deg, var(--accent) 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; margin-bottom: 12px;">All Clear!</h2>
+                    <p style="color: var(--text-muted); font-size: 1.1rem;">There are currently no unpaid or borrowed accounts in your system.</p>
+                </div>
+            `;
+        } else {
+            tabContainer.innerHTML = generateDebtorsHTML(allDebtors, threshold, "Complete Debtors List", "Full System Scan");
+        }
+    }
+}
+
+function generateDebtorsHTML(debtors, threshold, title, subtitle) {
+    let html = `
+        <div class="glass-card" style="margin-bottom: 24px; border: 1px solid rgba(239, 68, 68, 0.4); background: linear-gradient(135deg, rgba(225, 29, 72, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="background: #e11d48; color: white; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 900; box-shadow: 0 0 15px rgba(225, 29, 72, 0.3);">!</div>
+                    <div>
+                        <h3 style="margin: 0; color: #fb7185; font-size: 1.2rem;">${title}</h3>
+                        <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted);">${subtitle} • Threshold: ${threshold.toLocaleString()} SSP</p>
+                    </div>
+                </div>
+                <div class="header-count-badge badge-unpaid" style="font-size: 0.8rem; width: auto; height: auto; padding: 6px 16px;">${debtors.length} Records Found</div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px;">
+    `;
+
+    debtors.forEach(d => {
+        const isCritical = d.total >= threshold;
+        html += `
+            <div class="glass-card" style="padding: 16px; border: 1px solid ${isCritical ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.05)'}; background: rgba(0,0,0,0.2); position: relative; overflow: hidden;">
+                <div style="position: absolute; left: 0; top: 0; height: 100%; width: 4px; background: ${isCritical ? '#e11d48' : 'var(--warning)'};"></div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <div style="font-weight: 800; font-size: 1.1rem; color: #fff; margin-bottom: 2px;">${d.name}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                            <span>${d.transactions} Transactions</span>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="color: ${isCritical ? '#fb7185' : 'var(--warning)'}; font-weight: 900; font-size: 1.2rem;">${d.total.toLocaleString()}</div>
+                        <div style="font-size: 0.6rem; color: ${isCritical ? '#e11d48' : 'var(--warning)'}; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Total Owed</div>
+                    </div>
+                </div>
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button onclick="warnClient('${d.name.replace(/'/g, "\\'")}')" class="btn" style="padding: 4px 10px; font-size: 0.7rem; background: rgba(225, 29, 72, 0.15); color: #fb7185; border: 1px solid rgba(225, 29, 72, 0.3); border-radius: 6px; font-weight: 700;">
+                        📋 Record Warning
+                    </button>
+                    <button onclick="viewClientHistory('${d.name.replace(/'/g, "\\'")}')" class="btn" style="padding: 4px 10px; font-size: 0.7rem; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;">
+                        🔍 View History
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `</div></div>`;
+    return html;
+}
+
+function warnClient(name) {
+    // Find the actual records for this client that are unpaid/borrowed
+    const activeDebts = clients.filter(c =>
+        c.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+        (c.status === 'unpaid' || c.status === 'borrowed')
+    );
+
+    if (activeDebts.length > 0) {
+        const timestamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const warningNote = `[WARNING: Issued ${timestamp}]`;
+
+        // Add note to the most recent record
+        const latestRecord = activeDebts[0];
+        const existingNotes = latestRecord.notes || "";
+
+        if (!existingNotes.includes('WARNING')) {
+            latestRecord.notes = (existingNotes ? existingNotes + " " : "") + warningNote;
+            saveData();
+            showNotification(`Warning recorded & synced for ${name} ⚠️`, 'info');
+            renderDebtorsList();
+        } else {
+            showNotification(`Recent warning already exists for ${name}`, 'warning');
+        }
+    } else {
+        showNotification(`No active unpaid records found for ${name}`, 'error');
+    }
+}
+
+function viewClientHistory(name) {
+    const activitySearch = document.getElementById('search_filter_main');
+    if (activitySearch) {
+        activitySearch.value = name;
+        activitySearch.dataset.isDebtorHistory = 'true'; // Flag to ignore date filter
+
+        // Remove 'readonly' if it exists (usually set on mobile to prevent immediate keyboard pop)
+        activitySearch.removeAttribute('readonly');
+
+        // Remove flag when user clicks search or clears box
+        activitySearch.addEventListener('input', () => {
+            delete activitySearch.dataset.isDebtorHistory;
+        }, { once: true });
+
+        switchTab('clients');
+        updateDisplay();
+        showNotification(`Showing all-time history for ${name}`, 'success');
+    }
+}
+
+/**
+ * Filter by Category Dashboard Shortcuts
+ */
+function filterByCategory(type) {
+    const searchInput = document.getElementById('search_filter_main');
+    if (!searchInput) return;
+
+    // Switch to manage tab first so results are visible
+    switchTab('clients');
+
+    searchInput.value = type;
+    searchInput.removeAttribute('readonly');
+
+    // Smooth scroll to results
+    const listEl = document.getElementById('transactionList');
+    if (listEl) {
+        listEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    updateDisplay();
+    showNotification(`Filtering by: ${type}`, 'info');
 }

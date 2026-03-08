@@ -23,7 +23,7 @@
     <link rel="apple-touch-icon" sizes="72x72" href="/icon-72x72.png">
 
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json?v=3.5">
+    <link rel="manifest" href="/manifest.json?v=7.0">
 
     <!-- Theme Color for Mobile Browsers -->
     <meta name="theme-color" content="#6366f1">
@@ -46,15 +46,17 @@
     <!-- EmailJS for Password Recovery -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
+    <!-- Confetti & Animations -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
     <!-- QR Code Scanner -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
-    <!-- Firebase Configuration -->
-    <script src="assets/js/db-manager.js"></script>
+    <!-- Firebase Configuration (Modules first) -->
     <script type="module" src="assets/js/firebase-init.js"></script>
 
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="assets/css/modern-ui.css?v=3.5">
+    <link rel="stylesheet" href="assets/css/modern-ui.css?v=7.0">
 
     <style>
         .hidden {
@@ -75,13 +77,25 @@
     </style>
 </head>
 
-<body>
+<body style="margin: 0; padding: 0; overflow-x: hidden;">
+    <!-- Dynamic Background Layer -->
+    <div class="mesh-bg">
+        <div class="mesh-circle"
+            style="width: 600px; height: 600px; background: #6366f1; top: -100px; left: -100px; animation-duration: 25s;">
+        </div>
+        <div class="mesh-circle"
+            style="width: 500px; height: 500px; background: #10b981; bottom: -200px; right: -100px; animation-duration: 35s;">
+        </div>
+        <div class="mesh-circle"
+            style="width: 400px; height: 400px; background: #f43f5e; top: 40%; left: 30%; animation-duration: 45s; opacity: 0.08;">
+        </div>
+    </div>
 
     <!-- Luxury Login Screen -->
     <div id="loginPage" class="login-screen">
         <div class="glass-card login-card">
             <div class="login-logo-container">
-                <img src="assets/img/sama-logo.png?v=3.5" alt="Sama Wi-Fi Logo" class="login-logo">
+                <img src="assets/img/sama-logo.png?v=7.0" alt="Sama Wi-Fi Logo" class="login-logo">
             </div>
             <div class="login-header">
                 <span class="text-gradient h1-style">Sama Wi-Fi</span>
@@ -123,15 +137,12 @@
         <!-- Premium Header -->
         <header class="main-header">
             <div style="display: flex; align-items: center; gap: 16px;">
-                <img src="assets/img/sama-logo.png?v=3.5" alt="Logo"
+                <img src="assets/img/sama-logo.png?v=5.6" alt="Logo"
                     style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 1px solid var(--glass-border); filter: drop-shadow(0 0 8px var(--primary-glow))">
                 <div>
                     <h1 class="text-gradient"
-                        style="font-size: 2.2rem; line-height: 1; margin: 0; letter-spacing: -1px;">Sama Wi-Fi</h1>
-                    <span id="activeSessionsBadge" class="badge"
-                        style="background: rgba(16, 185, 129, 0.1); color: var(--accent); padding: 2px 8px; font-size: 0.65rem; border-radius: 20px; border: 1px solid var(--accent-glow); display: none; margin-top: 4px;">
-                        ● <span id="activeCount">0</span> Active Sessions
-                    </span>
+                        style="font-size: 2.2rem; line-height: 1; margin: 0; letter-spacing: -1px;">
+                        Sama Wi-Fi</h1>
                 </div>
             </div>
 
@@ -142,10 +153,16 @@
                     style="padding: 8px 16px; border-radius: 12px; font-size: 0.85rem; background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%); border: 1px solid rgba(255,255,255,0.2); color: white; font-weight: 600; display: flex; align-items: center; gap: 6px;">
                     👤 <span id="employeeNameDisplay">Admin</span>
                 </div>
-                <button onclick="forceSync()" class="btn"
-                    style="background: linear-gradient(135deg, var(--info) 0%, #0369a1 100%); color: white; padding: 8px 16px; font-size: 0.75rem; border: none; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3); font-weight: 700;">
-                    🔄 Sync Now
-                </button>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                    <button onclick="forceSync()" class="btn" id="syncMainBtn"
+                        style="background: linear-gradient(135deg, var(--info) 0%, #0369a1 100%); color: white; padding: 8px 16px; font-size: 0.75rem; border: none; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3); font-weight: 700;">
+                        🔄 Sync Now
+                    </button>
+                    <small id="lastSyncDisplay"
+                        style="font-size: 0.6rem; color: var(--text-muted); font-weight: 600;">Cloud
+                        status:
+                        Ready</small>
+                </div>
                 <button onclick="logout()" class="btn"
                     style="background: linear-gradient(135deg, var(--danger) 0%, #be123c 100%); color: white; padding: 8px 16px; font-size: 0.75rem; border: none; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3); font-weight: 700;">
                     Logout
@@ -155,7 +172,8 @@
 
         <!-- Stats Dashboard -->
         <div class="stats-grid">
-            <div class="glass-card stat-item">
+            <div class="glass-card stat-item" onclick="filterByCategory('')" title="Show all transactions"
+                style="cursor: pointer;">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div>
                         <span id="statTotalClients" class="stat-value">0</span>
@@ -168,7 +186,8 @@
                 <canvas id="sparklineVolume" class="stat-sparkline"></canvas>
                 <div class="stat-card-accent" style="background: var(--primary)"></div>
             </div>
-            <div class="glass-card stat-item">
+            <div class="glass-card stat-item" onclick="filterByCategory('paid')" title="Filter by Paid"
+                style="cursor: pointer;">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div>
                         <span id="statRevenue" class="stat-value text-gradient">0 SSP</span>
@@ -181,7 +200,8 @@
                 <canvas id="sparklineRevenue" class="stat-sparkline"></canvas>
                 <div class="stat-card-accent" style="background: var(--accent)"></div>
             </div>
-            <div class="glass-card stat-item">
+            <div class="glass-card stat-item" onclick="filterByCategory('expense')" title="Filter by Expenses"
+                style="cursor: pointer;">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div>
                         <span id="statExpenses" class="stat-value" style="color: var(--danger)">0 SSP</span>
@@ -194,7 +214,8 @@
                 <canvas id="sparklineExpenses" class="stat-sparkline"></canvas>
                 <div class="stat-card-accent" style="background: var(--danger)"></div>
             </div>
-            <div class="glass-card stat-item">
+            <div class="glass-card stat-item" onclick="filterByCategory('paid')" title="Show profit items"
+                style="cursor: pointer;">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div>
                         <span id="statNetProfit" class="stat-value">0 SSP</span>
@@ -206,6 +227,45 @@
                 </div>
                 <canvas id="sparklineProfit" class="stat-sparkline"></canvas>
                 <div class="stat-card-accent" style="background: #fff"></div>
+            </div>
+            <div class="glass-card stat-item" onclick="filterByCategory('unpaid')" title="Filter by Unpaid/Borrowed"
+                style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <span id="statUnpaid" class="stat-value" style="color: var(--warning)">0 SSP</span>
+                        <span class="stat-label">Unpaid Amount</span>
+                    </div>
+                    <div
+                        style="background: var(--warning-glow); padding: 10px; border-radius: 12px; position: relative; z-index: 2;">
+                        ⏳</div>
+                </div>
+                <canvas id="sparklineUnpaid" class="stat-sparkline"></canvas>
+                <div class="stat-card-accent" style="background: var(--warning)"></div>
+            </div>
+        </div>
+
+
+        <!-- Business Intelligence Alert -->
+        <div id="businessInsight" class="glass-card mb-4 hidden"
+            style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%); border-left: 4px solid var(--danger); transition: all 0.3s ease;">
+            <div style="display: flex; align-items: flex-start; gap: 16px;">
+                <div style="background: var(--danger-glow); padding: 12px; border-radius: 12px; font-size: 1.5rem;">⚠️
+                </div>
+                <div style="flex: 1;">
+                    <h3 id="insightTitle"
+                        style="color: var(--danger); margin: 0 0 4px 0; font-size: 1.1rem; font-weight: 800;">Business
+                        Warning: High Costs Detected</h3>
+                    <p id="insightMessage"
+                        style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin: 0;">
+                        Wait for real-time analysis...
+                    </p>
+                    <div id="insightAdvice"
+                        style="margin-top: 12px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; font-size: 0.8rem; border: 1px dashed rgba(239, 68, 68, 0.3);">
+                        <strong>💡 Business Advice:</strong> <span id="adviceText"></span>
+                    </div>
+                </div>
+                <button type="button" onclick="this.closest('#businessInsight').classList.add('hidden')"
+                    class="btn-close" style="color: white; opacity: 0.6;">×</button>
             </div>
         </div>
 
@@ -222,6 +282,9 @@
             </button>
             <button class="tab-btn" onclick="switchTab('history')">
                 <i data-lucide="bar-chart-3" style="width: 18px"></i> Reports
+            </button>
+            <button class="tab-btn" onclick="switchTab('debtors')">
+                <i data-lucide="alert-triangle" style="width: 18px"></i> Watchlist
             </button>
             <button class="tab-btn" onclick="switchTab('settings')">
                 <i data-lucide="settings" style="width: 18px"></i> Settings
@@ -294,10 +357,11 @@
                             <label for="filterDate" class="hidden">Filter Date</label>
                             <input type="date" id="filterDate" class="date-input" onchange="updateDisplay()"
                                 title="Filter activity by date">
-                            <label for="searchBox" class="hidden">Search Activity</label>
-                            <input type="text" id="searchBox" name="sama_search_query" class="search-input"
-                                placeholder="Search..." onkeyup="updateDisplay()" title="Search through activity"
-                                autocomplete="new-password" spellcheck="false">
+                            <label for="search_filter_main" class="hidden">Search Activity</label>
+                            <input type="text" id="search_filter_main" name="search_filter_main" class="search-input"
+                                placeholder="Type to filter..." onkeyup="debouncedUpdateDisplay()"
+                                onfocus="this.removeAttribute('readonly');" readonly autocomplete="off"
+                                data-lpignore="true" spellcheck="false">
                         </div>
                     </div>
                     <div id="transactionList" class="transaction-list">
@@ -403,7 +467,10 @@
                 </div>
 
                 <div class="glass-card">
-                    <h2 class="mb-4">Recent Voucher Sales</h2>
+                    <h2 class="mb-4" style="display: flex; justify-content: space-between; align-items: center;">
+                        Recent Voucher Sales
+                        <span id="voucherHistoryCount" class="header-count-badge badge-paid">0</span>
+                    </h2>
                     <div id="voucherHistory" class="transaction-list">
                         <p class="text-muted text-center p-8">Voucher sales will appear in the "Manage" daily activity
                             list.</p>
@@ -443,12 +510,16 @@
                             <input type="text" id="personName" name="personName" placeholder="Who spent this?">
                         </div>
                         <button type="submit" class="btn btn-primary"
-                            style="width: 100%; background: var(--danger)">Record Expense</button>
+                            style="width: 100%; background: var(--danger)">Record
+                            Expense</button>
                     </form>
                 </div>
 
                 <div class="glass-card">
-                    <h2 class="mb-4">Recent Expenses</h2>
+                    <h2 class="mb-4" style="display: flex; justify-content: space-between; align-items: center;">
+                        Recent Expenses
+                        <span id="expenseHistoryCount" class="header-count-badge badge-unpaid">0</span>
+                    </h2>
                     <div id="expenseHistory" class="transaction-list">
                         <p class="text-muted text-center p-8">Recent expenses will appear here.</p>
                     </div>
@@ -497,6 +568,11 @@
             <div id="historyContent">
                 <!-- Reports injected by JS -->
             </div>
+        </div>
+
+        <!-- Debtors Watchlist Tab -->
+        <div id="debtorsTab" class="tab-content hidden">
+            <!-- Content injected by JS -->
         </div>
 
         <!-- Settings Tab -->
@@ -663,7 +739,7 @@
                 style="display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 4px solid #6366f1; padding-bottom: 30px; margin-bottom: 40px;">
                 <div
                     style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid #6366f1; padding: 5px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; background: #f8fafc;">
-                    <img src="assets/img/sama-logo.png?v=3.5" alt="Logo"
+                    <img src="assets/img/sama-logo.png?v=5.6" alt="Logo"
                         style="height: 80px; width: 80px; object-fit: contain; border-radius: 50%;">
                 </div>
                 <div>
@@ -705,8 +781,9 @@
     </div>
 
     <!-- Core Scripts -->
-    <script src="assets/js/app.js?v=3.5"></script>
-    <script src="assets/js/ui-init.js?v=3.5"></script>
+    <script src="assets/js/db-manager.js?v=7.0"></script>
+    <script src="assets/js/app.js?v=7.0"></script>
+    <script src="assets/js/ui-init.js?v=7.0"></script>
 </body>
 
 </html>

@@ -13,7 +13,7 @@
 
     /* Dark Theme / Professional Glassmorphism */
     --bg-main: #020617;
-    --bg-gradient: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #020617 100%);
+    --bg-gradient: radial-gradient(circle at 50% 0%, #17163e 0%, #020617 100%);
     --glass-bg: rgba(15, 23, 42, 0.6);
     --glass-border: rgba(255, 255, 255, 0.08);
     --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
@@ -97,6 +97,57 @@ body {
     min-height: 100vh;
     overflow-x: hidden;
     line-height: 1.5;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 1000 1000' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: -1;
+}
+
+@keyframes mesh-float {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(10%, 10%) scale(1.1);
+    }
+
+    66% {
+        transform: translate(-10%, 5%) scale(0.9);
+    }
+
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+}
+
+.mesh-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.mesh-circle {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    animation: mesh-float 20s infinite linear;
 }
 
 /* Custom Scrollbar */
@@ -251,6 +302,51 @@ h3 {
         white-space: nowrap;
         font-size: 0.85rem;
     }
+}
+
+
+/* Animations for items */
+.reveal-item {
+    animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes danger-pulse {
+    0% {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 0 var(--danger-glow);
+    }
+
+    50% {
+        border-color: #ff4d4d;
+        box-shadow: 0 0 20px 5px var(--danger-glow);
+    }
+
+    100% {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 0 var(--danger-glow);
+    }
+}
+
+.pulse-critical {
+    animation: danger-pulse 2s infinite ease-in-out;
+}
+
+/* Tooltip styles */
+[title] {
+    position: relative;
+    cursor: help;
 }
 
 /* Modern Forms */
@@ -621,6 +717,122 @@ input:-webkit-autofill:active {
     border-left: 5px solid var(--danger);
 }
 
+/* Premium Voucher Card Redesign */
+.voucher-card-premium {
+    position: relative;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-left: 6px solid var(--accent);
+    padding: 20px;
+    margin-bottom: 16px;
+    border-radius: 20px;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(20px);
+}
+
+.voucher-card-premium::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.voucher-card-premium:hover {
+    transform: scale(1.02) translateX(8px);
+    border-color: var(--accent);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.1);
+}
+
+.voucher-icon-box {
+    width: 60px;
+    height: 60px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--accent);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.voucher-info-main {
+    flex: 1;
+    padding-left: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+.voucher-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.voucher-type-label {
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
+}
+
+.voucher-user-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.voucher-meta-text {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.voucher-password-highlight {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    color: var(--primary);
+    background: rgba(99, 102, 241, 0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.voucher-action-group {
+    text-align: right;
+    position: relative;
+    z-index: 1;
+    margin-left: 15px;
+}
+
+.voucher-price-tag {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--accent);
+    margin-bottom: 8px;
+    display: block;
+}
+
 /* Status Badges */
 .badge {
     padding: 6px 12px;
@@ -650,6 +862,43 @@ input:-webkit-autofill:active {
     background: rgba(245, 158, 11, 0.1);
     color: var(--warning);
     border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Premium Header Badges */
+.header-count-badge {
+    padding: 2px 14px;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    transition: var(--transition);
+}
+
+.header-count-badge.badge-paid {
+    background: linear-gradient(135deg, var(--accent) 0%, #065f46 100%);
+    box-shadow: 0 4px 15px var(--accent-glow);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.header-count-badge.badge-unpaid {
+    background: linear-gradient(135deg, var(--danger) 0%, #9f1239 100%);
+    box-shadow: 0 4px 15px var(--danger-glow);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.header-count-badge:hover {
+    transform: scale(1.1) rotate(2deg);
 }
 
 /* Notification (for dynamic JS usage) */

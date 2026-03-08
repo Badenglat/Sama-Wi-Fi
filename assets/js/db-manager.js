@@ -15,12 +15,12 @@ window.firebaseConfig = {
 const firebaseConfig = window.firebaseConfig;
 
 /**
- * 🔒 FIRESTORE SECURITY RULES (Suggestion):
+ * 🔒 FIRESTORE SECURITY RULES (Required for Sync):
  * rules_version = '2';
- * service window.firebasestore {
+ * service cloud.firestore {
  *   match /databases/{database}/documents {
  *     match /{document=**} {
- *       allow read, write: if true; // Change this to 'if false' or use Auth for better security
+ *       allow read, write: if true; 
  *     }
  *   }
  * }
@@ -145,7 +145,8 @@ async function loadFromCloud(force = false) {
         console.error("Cloud Load Error:", error);
         // If it's a permission error, we should notify
         if (error.code === 'permission-denied') {
-            alert("FireBase Error: Permission Denied. Please check your Firestore rules.");
+            alert("FireBase Error: Permission Denied.\n\nTo fix this:\n1. Open Firebase Console\n2. Go to Firestore Database > Rules\n3. Change rules to allow read/write\n4. Publish the changes.");
+            console.error("Firestore Permission Error. Current Rules are blocking access to 'sama_storage/current_state'.");
         }
         return false;
     }
